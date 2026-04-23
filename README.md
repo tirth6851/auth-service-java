@@ -104,6 +104,16 @@ App starts on `http://localhost:8080`.
 
 ---
 
+## Tests
+
+```bash
+mvn test
+```
+
+17 tests: 5 `JwtUtilTest` (unit), 5 `AuthServiceTest` (unit, Mockito), 7 `AuthControllerIntegrationTest` (MockMvc + H2).
+
+---
+
 ## API
 
 ### 1) Signup
