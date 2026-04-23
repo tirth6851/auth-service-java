@@ -33,10 +33,11 @@ class AuthControllerIntegrationTest {
     @Test
     void signup_returns409_onDuplicateEmail() throws Exception {
         String body = """
-            {"email":"alice@example.com","password":"pass1234"}
+            {"email":"dup@example.com","password":"pass1234"}
             """;
         mockMvc.perform(post("/auth/signup")
-                .contentType(MediaType.APPLICATION_JSON).content(body));
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isConflict());
@@ -68,14 +69,16 @@ class AuthControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"email":"bob@example.com","password":"pass1234"}
-                    """));
+                    """))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"email":"bob@example.com","password":"pass1234"}
                     """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isNotEmpty());
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"));
     }
 
     @Test
@@ -83,12 +86,13 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(post("/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"bob@example.com","password":"pass1234"}
-                    """));
+                    {"email":"wrongpw@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk());
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"bob@example.com","password":"wrongpass"}
+                    {"email":"wrongpw@example.com","password":"wrongpass"}
                     """))
                 .andExpect(status().isUnauthorized());
     }
