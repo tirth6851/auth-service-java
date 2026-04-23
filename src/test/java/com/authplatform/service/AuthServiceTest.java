@@ -61,7 +61,7 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("a@b.com")).thenReturn(true);
 
         SignupRequest req = new SignupRequest();
-        req.setEmail("a@b.com");
+        req.setEmail("  A@B.COM  ");
         req.setPassword("pass1234");
 
         assertThatThrownBy(() -> authService.signup(req))
