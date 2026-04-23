@@ -19,7 +19,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +52,8 @@ class AuthServiceTest {
 
         AuthResponse resp = authService.signup(req);
         assertThat(resp.getToken()).isEqualTo("tok");
+        verify(userRepository).existsByEmail("a@b.com");
+        verify(userRepository).save(argThat(u -> "a@b.com".equals(u.getEmail())));
     }
 
     @Test
@@ -86,7 +89,7 @@ class AuthServiceTest {
     void login_throws401_withWrongPassword() {
         User user = new User("a@b.com", "hashed");
         when(userRepository.findByEmail("a@b.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
 
         LoginRequest req = new LoginRequest();
         req.setEmail("a@b.com");
@@ -99,7 +102,7 @@ class AuthServiceTest {
 
     @Test
     void login_throws401_withUnknownEmail() {
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("x@y.com")).thenReturn(Optional.empty());
 
         LoginRequest req = new LoginRequest();
         req.setEmail("x@y.com");
