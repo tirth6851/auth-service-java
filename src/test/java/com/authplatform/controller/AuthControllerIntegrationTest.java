@@ -108,18 +108,16 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // A non-/auth path requires authentication. Spring Security's default entry point
-    // (no httpBasic/formLogin configured) rejects unauthenticated requests with 403.
     @Test
-    void protectedRoute_isDenied_whenNoToken() throws Exception {
+    void protectedRoute_returns401_whenNoToken() throws Exception {
         mockMvc.perform(get("/api/protected"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void protectedRoute_isDenied_whenInvalidToken() throws Exception {
+    void protectedRoute_returns401_whenInvalidToken() throws Exception {
         mockMvc.perform(get("/api/protected")
                 .header("Authorization", "Bearer not.a.real.token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

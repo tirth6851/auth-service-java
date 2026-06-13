@@ -8,6 +8,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -26,6 +27,12 @@ public class SecurityConfig {
     }
 
     @Bean
+    public AuthenticationEntryPoint unauthorizedEntryPoint() {
+        return (request, response, ex) -> response.sendError(
+                jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -34,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**", "/h2-console/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedEntryPoint()))
                 // allow H2 console frames in dev
                 .headers(h -> h.frameOptions(f -> f.disable()))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
