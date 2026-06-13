@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -105,5 +106,20 @@ class AuthControllerIntegrationTest {
                     {"email":"nobody@example.com","password":"pass1234"}
                     """))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // A non-/auth path requires authentication. Spring Security's default entry point
+    // (no httpBasic/formLogin configured) rejects unauthenticated requests with 403.
+    @Test
+    void protectedRoute_isDenied_whenNoToken() throws Exception {
+        mockMvc.perform(get("/api/protected"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void protectedRoute_isDenied_whenInvalidToken() throws Exception {
+        mockMvc.perform(get("/api/protected")
+                .header("Authorization", "Bearer not.a.real.token"))
+                .andExpect(status().isForbidden());
     }
 }

@@ -22,8 +22,22 @@ public class JwtUtil {
 
     private SecretKey signingKey;
 
+    private static final String PLACEHOLDER = "ReplaceThisWithAStrongSecretOfAtLeast32Chars!";
+
     @PostConstruct
     void init() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "app.jwt.secret is not set. Provide a JWT_SECRET of at least 32 characters.");
+        }
+        if (secret.equals(PLACEHOLDER)) {
+            throw new IllegalStateException(
+                    "app.jwt.secret is still the default placeholder. Set a real JWT_SECRET of at least 32 characters.");
+        }
+        if (secret.length() < 32) {
+            throw new IllegalStateException(
+                    "app.jwt.secret must be at least 32 characters for HS256; got " + secret.length() + ".");
+        }
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
