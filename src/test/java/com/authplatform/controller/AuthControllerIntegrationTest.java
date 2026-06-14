@@ -141,4 +141,58 @@ class AuthControllerIntegrationTest {
                 .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNotFound());
     }
+
+    // --- Error response shape tests ---
+
+    @Test
+    void errorShape_validationFailure_hasDetailsArray() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"notanemail","password":"pass1234"}
+                    """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Validation failed"))
+                .andExpect(jsonPath("$.details").isArray())
+                .andExpect(jsonPath("$.details").isNotEmpty());
+    }
+
+    @Test
+    void errorShape_invalidCredentials_hasErrorMessage() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"nobody@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Invalid credentials"))
+                .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
+    void errorShape_duplicateEmail_hasErrorMessage() throws Exception {
+        String body = """
+            {"email":"shape@example.com","password":"pass1234"}
+            """;
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Email already registered"))
+                .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    @Test
+    void errorShape_missingToken_hasErrorMessage() throws Exception {
+        mockMvc.perform(get("/api/protected"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Unauthorized"))
+                .andExpect(jsonPath("$.details").doesNotExist());
+    }
 }
