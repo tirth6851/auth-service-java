@@ -1,5 +1,6 @@
 package com.authplatform.config;
 
+import com.authplatform.security.Http401UnauthorizedEntryPoint;
 import com.authplatform.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,9 +16,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final Http401UnauthorizedEntryPoint unauthorizedEntryPoint;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          Http401UnauthorizedEntryPoint unauthorizedEntryPoint) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.unauthorizedEntryPoint = unauthorizedEntryPoint;
     }
 
     @Bean
@@ -34,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**", "/h2-console/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
+                .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))
                 // allow H2 console frames in dev
                 .headers(h -> h.frameOptions(f -> f.disable()))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
