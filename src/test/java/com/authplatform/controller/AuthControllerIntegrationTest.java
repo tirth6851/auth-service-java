@@ -1,5 +1,6 @@
 package com.authplatform.controller;
 
+import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -108,18 +109,36 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // A non-/auth path requires authentication. Spring Security's default entry point
-    // (no httpBasic/formLogin configured) rejects unauthenticated requests with 403.
     @Test
-    void protectedRoute_isDenied_whenNoToken() throws Exception {
+    void protectedRoute_returns401_whenNoToken() throws Exception {
         mockMvc.perform(get("/api/protected"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void protectedRoute_isDenied_whenInvalidToken() throws Exception {
+    void protectedRoute_returns401_whenInvalidToken() throws Exception {
         mockMvc.perform(get("/api/protected")
                 .header("Authorization", "Bearer not.a.real.token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void protectedRoute_passesAuth_whenValidToken() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"tokenuser@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Extract token from the signup response JSON
+        String token = JsonPath.read(signupResponse, "$.token");
+
+        // A valid token passes authentication; /api/protected doesn't exist so Spring returns 404,
+        // confirming the request was not rejected by the security layer.
+        mockMvc.perform(get("/api/protected")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNotFound());
     }
 }
