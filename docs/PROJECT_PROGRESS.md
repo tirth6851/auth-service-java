@@ -48,15 +48,27 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **Test infrastructure:** `src/test/resources/application.properties` created so integration tests run without `JWT_SECRET` env var.
 - Total tests: **23** (was 17 before Milestone 4 expansions + this PR added 3 net new).
 
-## Latest Metrics (2026-06-14)
+### Milestone 6 — Security Hardening Round 2 (2026-06-19)
+**Commits**: pending push to CI
+- `Dockerfile` — non-root `spring` user in runtime stage (least-privilege)
+- `SecurityConfig` — `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
+- `AuthControllerIntegrationTest` — added `responses_includeXFrameOptionsSameOrigin()` test
+- `docker-compose.yml` — removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
+- `.github/workflows/ci.yml` — `upload-artifact@v3` → `@v4` (action deprecation fix)
+- `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET` (doc contradiction)
+- `docs/RUNBOOK.md`, `docs/ARCHITECTURE.md` — updated to match changes
+
+Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior session; prior HANDOFF was stale on this point.
+
+## Latest Metrics (2026-06-19)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 23 (0 failures) |
-| Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `main` (PR #6 merged) |
+| Test count | 24 (0 failures — pending CI verification) |
+| Build status | CI will verify on next push |
+| Branch | `main` |
 | Open PRs | 0 |
-| Phase | 1 — Complete |
+| Phase | 1 Complete + Phase 2 upcoming |
 
 ## Recent PR History
 
@@ -70,5 +82,6 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 
 ## Branch Status
 
-- `main` — fully up to date, all Phase 1 work merged
+- `main` — security hardening round 2 committed, pending push to trigger CI
 - No open feature branches
+- Phase 2 GitHub issues to be created after `gh auth login`

@@ -25,7 +25,7 @@ services:
     container_name: auth-app
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      JWT_SECRET: ${JWT_SECRET:-demo-secret-minimum-32-characters-long-12345}
+      JWT_SECRET: ${JWT_SECRET}
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-authdb}
       POSTGRES_USER: ${POSTGRES_USER:-authuser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-authpass}

@@ -54,7 +54,8 @@ git push
 ### Prerequisites
 
 - Docker 20.10+ and docker-compose 2.0+
-- `.env` file with secrets (copy from `.env.example`)
+- `JWT_SECRET` env var set (no default — app refuses to start without it)
+- `.env` file with secrets (copy from `.env.example`, then replace demo values)
 
 ### First Run with Docker
 

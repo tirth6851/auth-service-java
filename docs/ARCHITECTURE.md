@@ -152,6 +152,7 @@ HTTP status codes:
 ### Dockerfile Strategy
 - **Stage 1**: Maven build (compile + test + package)
 - **Stage 2**: Runtime (JRE 17 on Alpine, minimal attack surface)
+- **Runtime user**: Non-root `spring` system user (least-privilege)
 - **Health check**: `wget --spider /actuator/health` every 30s
 
 ## Deployment Assumptions
