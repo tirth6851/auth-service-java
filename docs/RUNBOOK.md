@@ -49,6 +49,111 @@ git push
 
 ---
 
+## Docker Deployment
+
+### Prerequisites
+
+- Docker 20.10+ and docker-compose 2.0+
+- `.env` file with secrets (copy from `.env.example`)
+
+### First Run with Docker
+
+1. **Copy environment file:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with production secrets (never commit .env to git)
+   ```
+
+2. **Build and start services:**
+   ```bash
+   docker-compose up --build
+   ```
+
+3. **Verify services are healthy:**
+   ```bash
+   docker-compose ps                  # Check status
+   curl http://localhost:8080/actuator/health  # Health check
+   curl http://localhost:8080/auth/signup -X POST  # API ready (will 400: missing body)
+   ```
+
+4. **Stop services:**
+   ```bash
+   docker-compose down
+   ```
+
+### Services in docker-compose.yml
+
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| postgres | postgres:16-alpine | 5432 | PostgreSQL database |
+| app | Built from Dockerfile | 8080 | Auth Platform (Spring Boot) |
+
+### Environment Variables
+
+All variables sourced from `.env` file (never commit to git):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| JWT_SECRET | HMAC key for JWT signing (min 32 chars) | demo-secret-... |
+| POSTGRES_DB | Database name | authdb |
+| POSTGRES_USER | Database user | authuser |
+| POSTGRES_PASSWORD | Database password | authpass |
+
+### Health Checks
+
+Both services include health checks:
+
+**PostgreSQL:**
+```bash
+docker-compose exec postgres pg_isready -U authuser
+```
+
+**Application:**
+```bash
+curl http://localhost:8080/actuator/health
+# Response: {"status":"UP",...}
+```
+
+Health checks ensure services are ready before dependent services start.
+
+### Logs
+
+**View all logs:**
+```bash
+docker-compose logs -f
+```
+
+**View app logs only:**
+```bash
+docker-compose logs -f app
+```
+
+**View PostgreSQL logs:**
+```bash
+docker-compose logs -f postgres
+```
+
+### Common Docker Commands
+
+| Command | Purpose |
+|---------|---------|
+| `docker-compose up` | Start services (foreground) |
+| `docker-compose up -d` | Start services (background) |
+| `docker-compose down` | Stop and remove containers |
+| `docker-compose ps` | Show running services |
+| `docker-compose logs -f` | Stream logs |
+| `docker-compose exec app sh` | Enter app container shell |
+| `docker-compose exec postgres psql -U authuser authdb` | Connect to PostgreSQL |
+
+### Rebuilding After Code Changes
+
+```bash
+docker-compose down
+docker-compose up --build
+```
+
+---
+
 ## Testing
 
 ### Run All Tests

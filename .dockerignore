@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.example
+.DS_Store
+*.md
+docs/
+target/
+.vscode/
+.idea/
+*.iml
+node_modules/
+.pytest_cache/
+__pycache__/
+.gradle/
+build/
