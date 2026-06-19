@@ -61,6 +61,13 @@
             <artifactId>flyway-core</artifactId>
         </dependency>
 
+        <!-- Bucket4j - in-process token-bucket rate limiting -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j-core</artifactId>
+            <version>8.10.1</version>
+        </dependency>
+
         <!-- JJWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

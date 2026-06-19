@@ -1,61 +1,44 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Phase 2 — GET /auth/me)
-**Branch**: `claude/auth-me` (off `claude/security-hardening-round2`)
-**Last commit before this session**: `89ad000` (docs: update HANDOFF.md with Sprint 1 Batch 1 completion)
+**Last updated**: 2026-06-19 (Phase 2 — Rate Limiting on /auth/login)  
+**Branch**: `claude/rate-limit-login` (off `main`)  
+**Commit**: pending
 
 ---
 
 ## What Was Completed This Session
 
-### Security Hardening Round 2 — 4 fixes + 1 doc correction (prior work, branch `claude/security-hardening-round2`)
+### Rate Limiting on POST /auth/login (branch `claude/rate-limit-login`)
 
-See previous HANDOFF entries for full details. Summary:
-- Non-root Dockerfile user, X-Frame-Options SAMEORIGIN, docker-compose secret fallback removed, `.env.example` placeholder, ci.yml v4 upgrade.
+**Policy:** 10 attempts per 10 minutes per client IP. Returns `429 Too Many Requests` with `Retry-After: <seconds>` header and standard `ErrorResponse` body when exceeded.
 
-### GET /auth/me — Phase 2 Feature (branch `claude/auth-me`)
+**Files changed:**
 
-**What changed:**
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `com.bucket4j:bucket4j-core:8.10.1` |
+| `exception/RateLimitExceededException.java` | NEW — carries `retryAfterSeconds` field |
+| `config/LoginRateLimitInterceptor.java` | NEW — HandlerInterceptor with per-IP `ConcurrentHashMap<String, Bucket>` |
+| `config/WebConfig.java` | NEW — `WebMvcConfigurer` registering interceptor for `/auth/login` only |
+| `exception/GlobalExceptionHandler.java` | Added `handleRateLimit()` — 429 + Retry-After header + ErrorResponse |
+| `resources/application.properties` | Added `app.ratelimit.login.capacity=10` and `refill-period-seconds=600` |
+| `test/resources/application.properties` | Override `capacity=3` for fast integration tests |
+| `AuthControllerIntegrationTest.java` | 3 new tests (total: 30) |
+| `docs/API_CONTRACT.md` | Rate Limiting section updated with policy, headers, config |
+| `docs/ADR/005-rate-limiting-strategy.md` | NEW — design rationale |
 
-**`MeResponse.java`** — new DTO record
-- Fields: `Long id`, `String email`, `boolean verified`, `Instant createdAt`
-- No JPA entity exposure
+**Key design decisions (see ADR 005):**
 
-**`AuthService.getCurrentUser(String email)`** — new method
-- Looks up user by email from SecurityContext principal
-- Returns `MeResponse` with all profile fields
-- Throws 401 "Unauthorized" if user not found (valid token, deleted user case)
+- `HandlerInterceptor` not `Filter` — exceptions propagate to `@RestControllerAdvice`, preserving error-shape consistency
+- Keyed by `request.getRemoteAddr()` — XFF is attacker-controlled (rejected per advisor review)
+- `Refill.intervally` (fixed window) — harder than greedy for brute-force protection
+- Bucket map is an **instance field** not static — `DirtiesContext` resets it between tests correctly
+- No `Thread.sleep` in tests (forbidden per ENGINEERING_STANDARDS)
 
-**`AuthController.GET /auth/me`** — new endpoint
-- Reads email via `authentication.getName()` (filter stores email as principal)
-- Delegates to service; returns 200 with `MeResponse`
-- Spring Security enforces auth before controller is reached
-
-**`SecurityConfig`** — permit-all tightened
-- Changed `/auth/**` wildcard → explicit `/auth/signup`, `/auth/login`
-- `/auth/me` now falls under `anyRequest().authenticated()` as intended
-- Without this fix, `/auth/me` would have been publicly accessible
-
-**`application.properties`** — ISO 8601 date serialization
-- Added `spring.jackson.serialization.write-dates-as-timestamps=false`
-- `createdAt` serializes as `"2024-06-19T12:00:00Z"` not an epoch number
-
-**`AuthControllerIntegrationTest`** — 3 new tests (total: 27)
-- `authMe_returns200WithUserData_whenValidToken` — asserts id, email, verified, createdAt fields
-- `authMe_returns401_whenNoToken` — no Authorization header → 401
-- `authMe_returns401_whenInvalidToken` — malformed token → 401
-
-**`docs/API_CONTRACT.md`** — GET /auth/me endpoint spec added
-
----
-
-## Outstanding Risks or Blockers
-
-- ⚠️ **mvn test not run this session** — Maven still not in PATH. CI will verify on push.
-- ⚠️ **Two open branches need PRs**:
-  - `claude/security-hardening-round2` (security fixes) → merge first
-  - `claude/auth-me` (GET /auth/me) → merge after security branch
-- ⚠️ **gh CLI token expired** — Cannot create PRs or GitHub issues automatically. See "Next Steps" below.
+**Tests added (3, total now 30):**
+1. `login_underRateLimit_returns401NotRateLimited` — 2/3 attempts → 401, not 429
+2. `login_returns429_whenRateLimitExceeded` — 4th attempt → 429
+3. `login_returns429_withRetryAfterHeaderAndErrorBody` — 429 has `Retry-After` + standard error body
 
 ---
 
@@ -63,98 +46,108 @@ See previous HANDOFF entries for full details. Summary:
 
 | Branch | Contents | Status |
 |--------|----------|--------|
-| `main` | Phase 1 complete + all prior security | Stable |
-| `claude/security-hardening-round2` | Security fixes (4 fixes + 1 doc correction) | Needs PR → merge |
-| `claude/auth-me` | GET /auth/me feature (branched off security branch) | Needs CI + PR |
+| `main` | Phase 1 complete + all prior security (clean) | Stable |
+| `claude/security-hardening-round2` | Security fixes round 2 | Pushed — needs PR → merge |
+| `claude/auth-me` | GET /auth/me (off security branch) | Pushed — needs PR after security merges |
+| `claude/rate-limit-login` | Rate limiting on /auth/login (off main) | Needs push + CI + PR |
 
-**Merge order matters**: security branch must merge first (auth-me branched off it).
-
----
-
-## Files Changed (This Session — auth-me branch)
-
-### New files (1)
-- `src/main/java/com/authplatform/dto/MeResponse.java`
-
-### Modified files (5)
-- `src/main/java/com/authplatform/service/AuthService.java` — `getCurrentUser` method
-- `src/main/java/com/authplatform/controller/AuthController.java` — `GET /auth/me` endpoint
-- `src/main/java/com/authplatform/config/SecurityConfig.java` — explicit permit-all paths
-- `src/main/resources/application.properties` — ISO 8601 date format
-- `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — 3 new tests
-
-### Docs updated (3)
-- `docs/API_CONTRACT.md` — GET /auth/me spec
-- `docs/PROJECT_PROGRESS.md` — Milestone 7
-- `docs/PROJECT_BACKLOG.md` — /auth/me marked complete
+**Merge order for existing branches:**
+1. `claude/security-hardening-round2` → main (no deps)
+2. `claude/auth-me` → main (after security merges — branched off it)
+3. `claude/rate-limit-login` → main (off main, independent — can merge any time)
 
 ---
 
-## Tests Run & Results
+## Outstanding Risks or Blockers
 
-```
-mvn test: NOT RUN (Maven not in PATH this session)
-Expected: 27 tests pass (24 existing + 3 new GET /auth/me tests)
-CI will verify on next push
-```
+- ⚠️ **mvn test not run locally** — Maven not in PATH. CI will verify on push.
+- ⚠️ **gh CLI token expired** — Cannot create PRs from CLI. See next steps below.
+- ⚠️ `/auth/signup` not yet rate-limited — noted in PROJECT_BACKLOG.md
+- ⚠️ In a horizontally-scaled deployment, rate limit is per-instance (not shared). A Redis-backed Bucket4j extension would be needed for shared-state enforcement.
 
 ---
 
 ## Exact First Steps for Next Session
 
-### Priority 1: Push branches and open PRs
+### Priority 1: Push and open PR for this branch
 ```bash
-# Re-authenticate gh CLI first
-gh auth login
+git push origin claude/rate-limit-login
 
-# Push security branch (if not already pushed)
-git push origin claude/security-hardening-round2
+# After gh auth login:
+gh pr create --base main --head claude/rate-limit-login \
+  --title "feat: rate limit POST /auth/login (Bucket4j, 10/10min/IP)" \
+  --body "Adds in-process Bucket4j rate limiting to /auth/login. 429 + Retry-After header. Keyed by remoteAddr. 3 new integration tests (30 total). See ADR 005."
+```
 
-# Open security PR
+### Priority 2: Merge all pending branches (in order)
+```bash
+gh auth login   # if token expired
+
+# 1. Security hardening
 gh pr create --base main --head claude/security-hardening-round2 \
-  --title "security: harden Dockerfile, frame options, and docker-compose secret handling" \
-  --body "See HANDOFF.md Milestone 6 for full details."
+  --title "security: harden Dockerfile, frame options, and docker-compose"
 
-# Push auth/me branch
-git push origin claude/auth-me
-
-# Open auth/me PR (after security PR is merged)
+# 2. GET /auth/me (after security merges)
 gh pr create --base main --head claude/auth-me \
-  --title "feat: GET /auth/me — authenticated user profile endpoint" \
-  --body "Returns id, email, verified, createdAt. Tightens SecurityConfig permit-all from wildcard to explicit paths. 3 new integration tests (27 total)."
+  --title "feat: GET /auth/me — authenticated user profile endpoint"
+
+# 3. Rate limiting (independent, can merge any time)
+# See Priority 1 above
 ```
 
-### Priority 2: Create Phase 2 GitHub Issues
+### Priority 3: Next Phase 2 feature candidates
+From PROJECT_BACKLOG.md (Medium Priority):
+- **Refresh tokens** (POST /auth/refresh + POST /auth/logout) — bigger, multi-file, needs DB migration
+- **Audit logging** — structured auth event log (signup, login success/failure, token rejection)
+- **Rate limiting /auth/signup** — extend LoginRateLimitInterceptor or create a separate one
+
+---
+
+## Demo Flow (after merge)
+
 ```bash
-gh issue create \
-  --title "Phase 2: Refresh tokens (POST /auth/refresh + POST /auth/logout)" \
-  --body "Issue short-lived access tokens (15 min) + long-lived refresh tokens (7 days). Store refresh tokens hashed in DB. Support revocation on logout."
+# 1. Login normally
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"str0ngPassw0rd!"}'
+# → 200 OK with token
 
-gh issue create \
-  --title "Phase 2: Rate limiting on /auth/login and /auth/signup" \
-  --body "Protect auth endpoints from brute-force. Options: Bucket4j (in-process) or Redis-backed. Return 429 Too Many Requests with Retry-After header."
+# 2. Trigger rate limit (repeat 10+ times with any email/password)
+for i in {1..11}; do
+  curl -s -o /dev/null -w "Attempt $i: HTTP %{http_code}\n" \
+    -X POST http://localhost:8080/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"attacker@example.com","password":"guess'$i'"}'
+done
+# → First 10: HTTP 401 (wrong credentials)
+# → 11th+: HTTP 429 with Retry-After header
+
+# 3. Check the 429 response body
+curl -i -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"attacker@example.com","password":"guess"}'
+# → HTTP/1.1 429 Too Many Requests
+# → Retry-After: 543
+# → {"success":false,"error":"Too many login attempts. Please try again later."}
 ```
-
-### Priority 3: Next Phase 2 feature
-Candidates (check PROJECT_BACKLOG.md):
-- Refresh tokens (POST /auth/refresh, POST /auth/logout)
-- Rate limiting on auth endpoints
-- Email verification / OTP
 
 ---
 
 ## Handoff Validation Checklist
 
-- [x] GET /auth/me implemented (service + controller + DTO)
-- [x] SecurityConfig wildcard fix (closes public-access gap)
-- [x] 3 new integration tests covering happy path + 401 cases
-- [x] API_CONTRACT.md updated with new endpoint spec
-- [x] No secrets in code; no entity exposed in response
-- [x] 401 returned for missing/invalid token AND for valid-token-deleted-user
-- [x] ISO 8601 dates configured globally
-- [x] PROJECT_PROGRESS and PROJECT_BACKLOG updated
-- [x] Outstanding risks flagged (mvn test not run, gh token expired, PRs pending)
+- [x] Bucket4j dependency added with verified Maven coordinate (`com.bucket4j:bucket4j-core:8.10.1`)
+- [x] Rate limiter keyed by `remoteAddr` (not XFF)
+- [x] `Retry-After` header set with exact nanos-to-refill from Bucket4j probe
+- [x] Standard `ErrorResponse` shape preserved (no custom JSON in filter/interceptor)
+- [x] Interceptor bucket map is instance field (not static) — DirtiesContext resets it
+- [x] Test capacity=3 in test properties; no Thread.sleep in tests
+- [x] 3 new integration tests — under limit, over limit, header+body
+- [x] `docs/API_CONTRACT.md` updated with rate limiting policy
+- [x] `docs/ADR/005-rate-limiting-strategy.md` created
+- [x] `docs/PROJECT_BACKLOG.md` updated (rate limiting marked complete, signup gap noted)
+- [x] `docs/PROJECT_PROGRESS.md` updated (Milestone 8)
+- [x] HANDOFF.md updated
 
 ---
 
-*Last updated: 2026-06-19 (Phase 2 — GET /auth/me). Next session: gh auth login, push + open PRs, then next Phase 2 feature.*
+*Last updated: 2026-06-19 (Phase 2 — Rate Limiting). Next session: push branch, open PR, then next Phase 2 feature.*

@@ -40,10 +40,12 @@ _(Nothing blocking. Phase 1 is complete and stable.)_
 - Store refresh tokens in DB (hashed); support revocation
 - `POST /auth/logout` — invalidate refresh token
 
-### Rate Limiting
-- Protect `/auth/login` and `/auth/signup` against brute force
-- Options: Bucket4j (in-process), Redis-backed rate limiter, or API gateway
-- Return 429 Too Many Requests with `Retry-After` header
+### ✅ Rate Limiting on /auth/login — COMPLETE (branch `claude/rate-limit-login`)
+- Bucket4j in-process token bucket; 10 attempts / 10 min / IP
+- 429 Too Many Requests + `Retry-After` header on breach
+- Keyed by `remoteAddr` (not XFF — attacker-controlled)
+- ADR 005 documents design choices
+- ⚠ Remaining: `/auth/signup` not yet rate-limited
 
 ### Audit Logging
 - Structured log on every auth event: signup, login success, login failure, token rejection

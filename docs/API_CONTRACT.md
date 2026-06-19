@@ -282,7 +282,34 @@ Authorization: Bearer <token>
 
 ## Rate Limiting
 
-None in Phase 1.
+### POST /auth/login
+
+**Policy:** 10 requests per 10 minutes per client IP address.
+
+When the limit is exceeded the server returns:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds>
+Content-Type: application/json
+```
+
+```json
+{
+  "success": false,
+  "error": "Too many login attempts. Please try again later."
+}
+```
+
+The `Retry-After` header value is the number of seconds until the rate limit window resets. Clients should respect it before retrying.
+
+**Keying:** Requests are keyed by `remoteAddr` (the direct TCP client IP). If the service runs behind a trusted reverse proxy, configure `server.forward-headers-strategy=framework` so the real client IP is extracted from `X-Forwarded-For`.
+
+**Configuration** (overridable via environment):
+- `app.ratelimit.login.capacity` — max attempts per window (default: `10`)
+- `app.ratelimit.login.refill-period-seconds` — window length in seconds (default: `600`)
+
+**Other endpoints** (`/auth/signup`, `/auth/me`, `/actuator/health`) are not rate-limited.
 
 ---
 
