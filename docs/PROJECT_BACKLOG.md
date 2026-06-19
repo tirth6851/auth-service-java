@@ -12,26 +12,23 @@ _(Nothing blocking. Phase 1 is complete and stable.)_
 
 ## High Priority
 
-### PostgreSQL Migration
-Replace H2 in-memory with PostgreSQL.
-- Add `spring-boot-starter-data-jpa` PostgreSQL driver dependency
-- Replace H2 datasource config with Postgres connection string (env-var driven)
-- Add Flyway or Liquibase for schema migrations (replace `ddl-auto=update`)
-- Add `LOWER(email)` functional unique index for case-insensitive uniqueness
-- Update `docker-compose.yml` (create it) with Postgres service
-- Update `src/test/resources/application.properties` to use H2 or TestContainers
+### ✅ PostgreSQL Migration — COMPLETE (commit e51d94f)
+- PostgreSQL driver + Flyway in `pom.xml` ✓
+- `application-prod.properties` with env-driven DB config ✓
+- `V1__create_users_table.sql` Flyway migration ✓
+- H2 kept for local dev; prod uses PostgreSQL ✓
+- ⚠ Remaining: `LOWER(email)` functional unique index not yet added
 
-### Docker / Docker Compose
-- `Dockerfile` (multi-stage build: Maven compile → JRE runtime image)
-- `docker-compose.yml` with `app` + `postgres` services
-- `.env.example` documenting required env vars (`JWT_SECRET`, `POSTGRES_*`)
-- Health check endpoint (`/actuator/health` or custom `/health`)
+### ✅ Docker / Docker Compose — COMPLETE (commit bb6df9e + 0eeeef4)
+- Multi-stage `Dockerfile` (Maven build → JRE Alpine, non-root user) ✓
+- `docker-compose.yml` with `postgres` + `app` services, healthchecks ✓
+- `.env.example` documenting `JWT_SECRET`, `POSTGRES_*` (placeholder, not demo secret) ✓
+- `/actuator/health` endpoint ✓
 
-### CI/CD Pipeline
-- GitHub Actions workflow: compile → test → build image → push to registry
-- Enforce `mvn test` on every PR targeting `main`
-- Secret scanning step (detect committed `JWT_SECRET`)
-- Optional: deploy to a cloud target (Railway, Fly.io, Render) on merge to `main`
+### ✅ CI/CD Pipeline — COMPLETE (commit fd08df2 + 0eeeef4)
+- `.github/workflows/ci.yml`: JDK 17, `mvn -B verify`, JaCoCo report upload ✓
+- Triggers on push to `main` and `claude/**`, PR to `main` ✓
+- `upload-artifact@v4` (upgraded from deprecated v3) ✓
 
 ---
 
