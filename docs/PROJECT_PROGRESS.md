@@ -54,6 +54,7 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - `SecurityConfig` — `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
 - `AuthControllerIntegrationTest` — added `responses_includeXFrameOptionsSameOrigin()` test
 - `docker-compose.yml` — removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
+- `.env.example` — demo JWT_SECRET replaced with JwtUtil-rejected placeholder (closes onboarding-path gap)
 - `.github/workflows/ci.yml` — `upload-artifact@v3` → `@v4` (action deprecation fix)
 - `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET` (doc contradiction)
 - `docs/RUNBOOK.md`, `docs/ARCHITECTURE.md` — updated to match changes

@@ -24,9 +24,14 @@
 
 **Fix C — docker-compose: removed demo JWT_SECRET fallback**
 - Changed `${JWT_SECRET:-demo-secret-minimum-32-characters-long-12345}` → `${JWT_SECRET}`
-- The old fallback demo secret passed JwtUtil validation (>32 chars, not placeholder), making it possible to run with a publicly-known weak secret
 - Now docker-compose fails fast if JWT_SECRET is not set, matching the JwtUtil fail-fast design
-- `docs/RUNBOOK.md` updated: prerequisites section now explicitly requires JWT_SECRET
+
+**Fix C2 — .env.example: replaced demo JWT_SECRET with JwtUtil-rejected placeholder**
+- Changed `JWT_SECRET=demo-secret-minimum-32-characters-long-12345` → `JWT_SECRET=ReplaceThisWithAStrongSecretOfAtLeast32Chars!`
+- The demo secret passed all three JwtUtil validation checks; standard onboarding (`cp .env.example .env` + `docker compose up`) would boot with the publicly-known weak secret
+- Now `.env.example` uses the exact PLACEHOLDER constant from JwtUtil.java:25, so `@PostConstruct init()` throws "app.jwt.secret is still the default placeholder" at startup
+- Closes the onboarding path gap left by the docker-compose fix alone
+- `docs/RUNBOOK.md` updated: prerequisites and environment table reflect the new requirement
 
 **Fix D — ci.yml: upgraded upload-artifact@v3 → @v4**
 - `actions/upload-artifact@v3` was deprecated by GitHub (Nov 2024)
@@ -59,14 +64,15 @@ Current state of Sprint 1 deliverables:
 
 ## Files Changed
 
-### Modified (7 files)
+### Modified (9 files)
 - `Dockerfile` — added non-root spring user (Stage 2)
 - `src/main/java/com/authplatform/config/SecurityConfig.java` — frameOptions SAMEORIGIN
 - `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — added X-Frame-Options test
 - `docker-compose.yml` — removed demo JWT_SECRET fallback
 - `.github/workflows/ci.yml` — upload-artifact@v3 → @v4
 - `CLAUDE_SESSION_START.md` — APP_JWT_SECRET → JWT_SECRET (line 95)
-- `docs/RUNBOOK.md` — updated Docker prerequisites section
+- `.env.example` — JWT_SECRET changed from demo secret to JwtUtil-rejected placeholder
+- `docs/RUNBOOK.md` — updated Docker prerequisites section and JWT_SECRET example
 - `docs/ARCHITECTURE.md` — added non-root user note to Dockerfile Strategy section
 
 ---
@@ -138,7 +144,7 @@ This is the highest-priority Phase 2 item. When ready:
 
 ## Handoff Validation Checklist
 
-- [x] All security fixes completed (A: non-root, B: SAMEORIGIN, C: secret fallback, D: ci.yml)
+- [x] All security fixes completed (A: non-root, B: SAMEORIGIN, C: docker-compose fallback, C2: .env.example placeholder, D: ci.yml)
 - [x] Doc contradiction fixed (APP_JWT_SECRET → JWT_SECRET)
 - [x] Stale HANDOFF corrected (CI pipeline was already done — not "next")
 - [x] New test added for SecurityConfig change (X-Frame-Options SAMEORIGIN)
