@@ -1,85 +1,172 @@
-# Claude Session Start — Read This First
+# Claude Session Start
 
-This file is the entry point for any new Claude session on this repository. Read it before touching any code.
+**Read this file first, every session.** It is your entry point to the repository and the handoff from the previous session.
 
 ---
 
-## Project Summary
+## Session Entry Checklist
 
-**`auth-service-java`** is a stateless JWT authentication REST API.
-- **Stack:** Java 17, Spring Boot 3.2, Spring Security 6, JJWT 0.12, H2 (in-memory), Maven
-- **Endpoints:** `POST /auth/signup`, `POST /auth/login` — both return `{token, tokenType}`
-- **All other routes** require `Authorization: Bearer <token>` → 401 if missing/invalid
+**Before touching any code, complete this in order:**
 
-## Current Status (as of 2026-06-14)
+1. ✅ **Read CLAUDE.md** (governance + quick rules)
+2. ✅ **Read docs/HANDOFF.md** ← *previous session state & next steps* (see [HANDOFF Template](docs/HANDOFF.md))
+3. ✅ **Assess task risk** (use MISSION_CONTROL.md decision matrix to determine scope)
+4. ✅ **Read required docs** per decision authority (see below)
+5. ✅ **Verify git status** (`git status`, `git log --oneline -5`)
+6. ✅ **Run tests** (`mvn test` must pass)
+7. ✅ **Start work** (follow code change workflow in MISSION_CONTROL.md)
+8. ✅ **Update HANDOFF.md before stopping** ← *MANDATORY end-of-session rule*
 
-**Phase 1 is complete.** All acceptance criteria met. 23 tests pass. `main` is green.
+---
 
-Latest merged PR: **#6 — fix: return 401 instead of 403 for unauthenticated requests**
+## Required Reading Order (By Task Type)
 
-## Current Milestone
+### For ANY code change:
+1. `CLAUDE.md` (5 min) — rules, quick start
+2. `docs/HANDOFF.md` (2 min) — previous session state
+3. `docs/MISSION_CONTROL.md` (5 min) — decision matrix, risk assessment
+4. `docs/PRD.md` (5 min) — scope check (is feature in Phase 1?)
+5. `docs/TRD.md` (5 min) — constraints, requirements
 
-None active. Phase 1 done. Next work is Phase 2 (see backlog).
+### For feature implementation (medium/high risk):
+6. `docs/ARCHITECTURE.md` (10 min) — which layers are affected?
+7. `docs/ENGINEERING_STANDARDS.md` (5 min) — coding rules, forbidden patterns
+8. `docs/API_CONTRACT.md` (5 min) — endpoint specs (if API change)
 
-## Current Priorities
+### For bug fix or refactor (low risk):
+6. `docs/ENGINEERING_STANDARDS.md` (5 min) — quick rules
+7. Relevant domain docs (ARCHITECTURE or TEST_STRATEGY, as needed)
 
-1. **No critical bugs.** The codebase is stable.
-2. **Phase 2 starting point** (choose one): PostgreSQL migration, CI/CD pipeline, or refresh tokens.
-3. Check `docs/PROJECT_BACKLOG.md` for the full ranked list.
+### Before release/merge:
+6. `docs/TEST_STRATEGY.md` (5 min) — coverage requirements
+7. `docs/ENVIRONMENTS.md` (5 min) — config check
+8. `docs/RUNBOOK.md` (5 min) — deployment safety
 
-## Required Docs to Read
+### For context (always helpful):
+- `docs/PROJECT_CONTEXT.md` — project mission, users, personas
+- `docs/PROJECT_PROGRESS.md` — what's been done, metrics
+- `docs/PROJECT_DECISIONS.md` — why decisions were made
+- `docs/PROJECT_BACKLOG.md` — pending work, priorities
+- `docs/ADR/` — major architectural decisions
 
-Before implementing anything, read in this order:
+---
 
-| File | Why |
-|------|-----|
-| `CLAUDE.md` | Coding rules, commands, architecture overview, phase scope |
-| `docs/PROJECT_CONTEXT.md` | Full architecture, security model, testing strategy |
-| `docs/PROJECT_PROGRESS.md` | What has been done, PR history, metrics |
-| `docs/PROJECT_DECISIONS.md` | Why things are the way they are — read before changing anything |
-| `docs/PROJECT_BACKLOG.md` | What's next, prioritised |
-| `docs/spec.md` | Phase 1 API contract (still authoritative for existing endpoints) |
+## Current Project State
 
-## Rules of Engagement
+**Phase 1 Status**: Complete  
+**Main branch**: Clean, all tests passing  
+**Latest work**: [Check docs/HANDOFF.md for most recent session]  
+**No active blockers**: [Update HANDOFF.md if you discover any]
 
-### What to do
-- Follow the layered architecture: HTTP logic in controller, business logic in service, no exceptions.
-- Keep DTOs for all request/response objects — never expose JPA entities.
-- Write tests for every new feature: unit test for service logic, integration test for HTTP contract.
-- Run `mvn test` before declaring anything done.
-- Update `docs/PROJECT_PROGRESS.md` when a milestone completes.
-- Add a `PROJECT_DECISIONS.md` entry for any significant design choice.
+---
 
-### What NOT to do
-- Do not add Phase 2+ features (refresh tokens, roles, email verification, OAuth2) unless explicitly asked.
-- Do not modify `AuthController`, `AuthService`, `JwtUtil`, DTOs, or entities for the 401/403 fix — those are in scope only for the security config.
-- Do not expose JPA entities in API responses.
-- Do not hardcode secrets — always use environment variables.
-- Do not commit `.env` files (it's in `.gitignore`).
-- Do not use `UserDetailsService` — Phase 1 bypasses it intentionally (see `docs/PROJECT_DECISIONS.md` D-009).
+## Non-Negotiable Rules (Zero Tolerance)
 
-### Phase scope reminder
-Phase 1 only: signup, login, JWT issuance/validation. Absent by design: refresh tokens, email OTP, RBAC, API keys, external providers, scheduled jobs.
+❌ **NEVER**:
+- Code before reading required docs
+- Put business logic in controllers (goes in service)
+- Expose JPA entities in HTTP responses (use DTOs)
+- Hardcode secrets (use environment variables)
+- Skip tests (80%+ coverage required)
+- Commit without updating HANDOFF.md at session end
 
-## Git Safety Rules
+✅ **ALWAYS**:
+- Update docs in same commit as code changes
+- Run tests: `mvn test` (must pass)
+- Use `/security-review` if touching auth/config/errors
+- Update HANDOFF.md before ending session
+- Read MISSION_CONTROL.md for decision authority
 
-- **Branch:** always create a feature branch off `main`, never commit directly to `main`.
-- **Branch naming:** `claude/<short-description>-<id>` (follow existing pattern).
-- **Commit messages:** imperative mood, concise. Follow the style in `git log --oneline`.
-- **Push:** `git push -u origin <branch>` then open a **draft PR**.
-- **Never** `--force-push` to `main`.
-- **Never** `--no-verify` (skip hooks).
-- **Never** amend a pushed commit — create a new one.
-- **Confirm with the user** before merging or closing a PR.
+---
 
-## Quick Commands
+## Quick Reference
 
+### Commands
 ```bash
-mvn compile -DskipTests      # fast compile check
-mvn test                      # run all 23 tests
-mvn spring-boot:run           # start on :8080 (requires JWT_SECRET env var)
-export JWT_SECRET="replace-with-32-plus-char-secret-here"
+mvn test                          # All tests (must pass)
+mvn clean compile -DskipTests     # Quick compile check
+mvn spring-boot:run               # Run on localhost:8080
+mvn jacoco:report                 # Coverage report
+git status                        # Check for uncommitted changes
 ```
 
-H2 console (dev profile only): `http://localhost:8080/h2-console`
-JDBC URL: `jdbc:h2:mem:authdb`, user: `sa`, no password.
+### Environment
+```bash
+export APP_JWT_SECRET="demo-secret-minimum-32-characters-long-12345"
+# (Never use demo secret in production)
+```
+
+### API
+- `POST /auth/signup` — register user, returns JWT
+- `POST /auth/login` — login, returns JWT
+- Protected routes require: `Authorization: Bearer <token>`
+
+### Stack
+- **Language**: Java 17
+- **Framework**: Spring Boot 3.2
+- **Auth**: Spring Security + JJWT
+- **Database**: H2 in-memory (dev), PostgreSQL (planned for prod)
+- **Build**: Maven 3.6+
+- **Testing**: JUnit 5, Mockito, Spring Test
+
+---
+
+## HANDOFF Protocol (Session Continuity)
+
+At **the end of every work session**, you MUST update `docs/HANDOFF.md`:
+
+- What you completed
+- What's in progress
+- Outstanding risks or blockers
+- Exact next steps for the next session
+- Files changed, tests run, docs updated
+
+A session is **NOT complete** until HANDOFF.md is refreshed.
+
+**Next session**: Read HANDOFF.md immediately after CLAUDE.md to understand where the previous session left off.
+
+---
+
+## Skills Available
+
+- `/spring-auth-feature` — implement features following layered rules
+- `/java-test-first` — plan tests, ensure coverage
+- `/security-review` — audit secrets, auth, errors
+- `/release-checklist` — pre-merge verification
+
+Use them liberally. They enforce consistency and catch issues early.
+
+---
+
+## What to Do If Stuck
+
+1. Check MISSION_CONTROL.md (red flags, decision matrix, escalation)
+2. Check docs/PROJECT_DECISIONS.md (why things are the way they are)
+3. Check HANDOFF.md (previous session may have hit same blocker)
+4. Run `/security-review` or `/release-checklist` for mechanical verification
+5. Re-read relevant domain doc (ARCHITECTURE, API_CONTRACT, etc.)
+6. If still stuck: document the blocker in HANDOFF.md, ask for guidance
+
+---
+
+## Commit & PR Safety
+
+- **Branch naming**: `claude/<description>-<id>` (follow existing pattern)
+- **Commit message**: imperative, clear, under 50 chars
+- **Push & PR**: `git push -u origin <branch>` → open draft PR
+- **Before merge**: Run `/release-checklist`, get code review approval
+- **Never**: force-push to main, skip hooks, amend published commits
+- **Always**: Confirm with user before closing PR or merging
+
+---
+
+## Verification Before Stopping Work
+
+- [ ] All tests pass (`mvn test`)
+- [ ] No uncommitted changes (`git status` is clean)
+- [ ] Relevant docs updated (ARCHITECTURE, API_CONTRACT, etc.)
+- [ ] HANDOFF.md refreshed with next steps
+- [ ] Branch pushed to remote (`git push`)
+- [ ] PR created (if feature/fix)
+
+Only after all boxes checked: **session complete**.
