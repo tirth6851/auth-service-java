@@ -61,15 +61,25 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 
 Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior session; prior HANDOFF was stale on this point.
 
+### Milestone 7 — GET /auth/me (2026-06-19)
+**Branch**: `claude/auth-me` (pending CI + PR)
+- `GET /auth/me` — protected endpoint returning id, email, verified, createdAt
+- `MeResponse` DTO (record) — no entity exposure
+- `AuthService.getCurrentUser(email)` — DB lookup; 401 if user not found
+- `SecurityConfig` — `/auth/**` wildcard → explicit `/auth/signup`, `/auth/login` (closes security gap)
+- `application.properties` — ISO 8601 date serialization enabled
+- `AuthControllerIntegrationTest` — 3 new tests (valid token → 200, no token → 401, invalid token → 401)
+- `docs/API_CONTRACT.md` — GET /auth/me endpoint spec added
+
 ## Latest Metrics (2026-06-19)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 24 (0 failures — pending CI verification) |
-| Build status | CI will verify on next push |
-| Branch | `main` |
-| Open PRs | 0 |
-| Phase | 1 Complete + Phase 2 upcoming |
+| Test count | 27 (0 failures — pending CI verification) |
+| Build status | CI will verify on push |
+| Branch | `claude/auth-me` |
+| Open PRs | 0 (security hardening branch also pending PR) |
+| Phase | Phase 2 in progress |
 
 ## Recent PR History
 

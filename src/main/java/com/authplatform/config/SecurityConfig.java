@@ -35,7 +35,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/h2-console/**", "/error").permitAll()
+                        .requestMatchers("/auth/signup", "/auth/login", "/h2-console/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))

@@ -2,10 +2,13 @@ package com.authplatform.controller;
 
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
+import com.authplatform.dto.MeResponse;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,5 +32,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<MeResponse> me(Authentication authentication) {
+        return ResponseEntity.ok(authService.getCurrentUser(authentication.getName()));
     }
 }

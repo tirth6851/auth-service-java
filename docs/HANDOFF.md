@@ -1,79 +1,92 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Security Hardening Round 2)  
-**Branch**: main  
+**Last updated**: 2026-06-19 (Phase 2 — GET /auth/me)
+**Branch**: `claude/auth-me` (off `claude/security-hardening-round2`)
 **Last commit before this session**: `89ad000` (docs: update HANDOFF.md with Sprint 1 Batch 1 completion)
 
 ---
 
 ## What Was Completed This Session
 
-### Security Hardening Round 2 — 4 fixes + 1 doc correction
+### Security Hardening Round 2 — 4 fixes + 1 doc correction (prior work, branch `claude/security-hardening-round2`)
 
-**Fix A — Dockerfile: non-root runtime user**
-- Added `spring` system user/group in Stage 2 of Dockerfile
-- `USER spring` directive ensures container doesn't run as root
-- `docs/ARCHITECTURE.md` updated to note non-root user
+See previous HANDOFF entries for full details. Summary:
+- Non-root Dockerfile user, X-Frame-Options SAMEORIGIN, docker-compose secret fallback removed, `.env.example` placeholder, ci.yml v4 upgrade.
 
-**Fix B — SecurityConfig: X-Frame-Options SAMEORIGIN**
-- Changed `frameOptions(f -> f.disable())` → `frameOptions(f -> f.sameOrigin())`
-- Disabling frame options globally was a clickjacking risk in production
-- SAMEORIGIN still allows H2 console frames locally (same-origin only)
-- Added integration test: `responses_includeXFrameOptionsSameOrigin()` in `AuthControllerIntegrationTest`
-- Total tests: **24** (was 23)
+### GET /auth/me — Phase 2 Feature (branch `claude/auth-me`)
 
-**Fix C — docker-compose: removed demo JWT_SECRET fallback**
-- Changed `${JWT_SECRET:-demo-secret-minimum-32-characters-long-12345}` → `${JWT_SECRET}`
-- Now docker-compose fails fast if JWT_SECRET is not set, matching the JwtUtil fail-fast design
+**What changed:**
 
-**Fix C2 — .env.example: replaced demo JWT_SECRET with JwtUtil-rejected placeholder**
-- Changed `JWT_SECRET=demo-secret-minimum-32-characters-long-12345` → `JWT_SECRET=ReplaceThisWithAStrongSecretOfAtLeast32Chars!`
-- The demo secret passed all three JwtUtil validation checks; standard onboarding (`cp .env.example .env` + `docker compose up`) would boot with the publicly-known weak secret
-- Now `.env.example` uses the exact PLACEHOLDER constant from JwtUtil.java:25, so `@PostConstruct init()` throws "app.jwt.secret is still the default placeholder" at startup
-- Closes the onboarding path gap left by the docker-compose fix alone
-- `docs/RUNBOOK.md` updated: prerequisites and environment table reflect the new requirement
+**`MeResponse.java`** — new DTO record
+- Fields: `Long id`, `String email`, `boolean verified`, `Instant createdAt`
+- No JPA entity exposure
 
-**Fix D — ci.yml: upgraded upload-artifact@v3 → @v4**
-- `actions/upload-artifact@v3` was deprecated by GitHub (Nov 2024)
-- No functional change; prevents CI deprecation warnings and eventual breakage
+**`AuthService.getCurrentUser(String email)`** — new method
+- Looks up user by email from SecurityContext principal
+- Returns `MeResponse` with all profile fields
+- Throws 401 "Unauthorized" if user not found (valid token, deleted user case)
 
-**Doc contradiction fixed — CLAUDE_SESSION_START.md:95**
-- Changed `APP_JWT_SECRET` → `JWT_SECRET` (was inconsistent with every other file)
-- Spring property `app.jwt.secret` binds to `JWT_SECRET` env var (not `APP_JWT_SECRET`)
+**`AuthController.GET /auth/me`** — new endpoint
+- Reads email via `authentication.getName()` (filter stores email as principal)
+- Delegates to service; returns 200 with `MeResponse`
+- Spring Security enforces auth before controller is reached
 
----
+**`SecurityConfig`** — permit-all tightened
+- Changed `/auth/**` wildcard → explicit `/auth/signup`, `/auth/login`
+- `/auth/me` now falls under `anyRequest().authenticated()` as intended
+- Without this fix, `/auth/me` would have been publicly accessible
 
-## Stale HANDOFF Correction (from previous session)
+**`application.properties`** — ISO 8601 date serialization
+- Added `spring.jackson.serialization.write-dates-as-timestamps=false`
+- `createdAt` serializes as `"2024-06-19T12:00:00Z"` not an epoch number
 
-The prior HANDOFF listed "Sprint 1 Batch 2: GitHub Actions CI Pipeline" as the NEXT task. This was incorrect — `.github/workflows/ci.yml` already existed in the repo (committed before the last 5 commits visible in `git log`). The Sprint 1 Batch 2 CI work was already done.
+**`AuthControllerIntegrationTest`** — 3 new tests (total: 27)
+- `authMe_returns200WithUserData_whenValidToken` — asserts id, email, verified, createdAt fields
+- `authMe_returns401_whenNoToken` — no Authorization header → 401
+- `authMe_returns401_whenInvalidToken` — malformed token → 401
 
-Current state of Sprint 1 deliverables:
-- ✅ Sprint 1 Batch 1: Docker + docker-compose + /actuator/health (bb6df9e)
-- ✅ Sprint 1 Batch 2: GitHub Actions CI pipeline (already in .github/workflows/ci.yml)
-- ✅ Sprint 1 Batch 3: Security hardening round 2 (this session)
+**`docs/API_CONTRACT.md`** — GET /auth/me endpoint spec added
 
 ---
 
 ## Outstanding Risks or Blockers
 
-- ⚠️ **mvn test not run this session** — Maven was not in PATH. All changes are non-breaking (SecurityConfig SAMEORIGIN is backward-compatible; Dockerfile user change is runtime-only; docker-compose and ci.yml fixes have no test-time impact). CI will run `mvn -B verify` on the next push and catch any issues.
-- ⚠️ **gh CLI token expired** — Could not create Phase 2 GitHub issues automatically. See "Next Steps" below for the issue text to create manually.
-- ⚠️ **Docker build not tested** — Docker not in PATH locally. CI pipeline will test on push.
+- ⚠️ **mvn test not run this session** — Maven still not in PATH. CI will verify on push.
+- ⚠️ **Two open branches need PRs**:
+  - `claude/security-hardening-round2` (security fixes) → merge first
+  - `claude/auth-me` (GET /auth/me) → merge after security branch
+- ⚠️ **gh CLI token expired** — Cannot create PRs or GitHub issues automatically. See "Next Steps" below.
 
 ---
 
-## Files Changed
+## Branch State
 
-### Modified (9 files)
-- `Dockerfile` — added non-root spring user (Stage 2)
-- `src/main/java/com/authplatform/config/SecurityConfig.java` — frameOptions SAMEORIGIN
-- `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — added X-Frame-Options test
-- `docker-compose.yml` — removed demo JWT_SECRET fallback
-- `.github/workflows/ci.yml` — upload-artifact@v3 → @v4
-- `CLAUDE_SESSION_START.md` — APP_JWT_SECRET → JWT_SECRET (line 95)
-- `.env.example` — JWT_SECRET changed from demo secret to JwtUtil-rejected placeholder
-- `docs/RUNBOOK.md` — updated Docker prerequisites section and JWT_SECRET example
-- `docs/ARCHITECTURE.md` — added non-root user note to Dockerfile Strategy section
+| Branch | Contents | Status |
+|--------|----------|--------|
+| `main` | Phase 1 complete + all prior security | Stable |
+| `claude/security-hardening-round2` | Security fixes (4 fixes + 1 doc correction) | Needs PR → merge |
+| `claude/auth-me` | GET /auth/me feature (branched off security branch) | Needs CI + PR |
+
+**Merge order matters**: security branch must merge first (auth-me branched off it).
+
+---
+
+## Files Changed (This Session — auth-me branch)
+
+### New files (1)
+- `src/main/java/com/authplatform/dto/MeResponse.java`
+
+### Modified files (5)
+- `src/main/java/com/authplatform/service/AuthService.java` — `getCurrentUser` method
+- `src/main/java/com/authplatform/controller/AuthController.java` — `GET /auth/me` endpoint
+- `src/main/java/com/authplatform/config/SecurityConfig.java` — explicit permit-all paths
+- `src/main/resources/application.properties` — ISO 8601 date format
+- `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — 3 new tests
+
+### Docs updated (3)
+- `docs/API_CONTRACT.md` — GET /auth/me spec
+- `docs/PROJECT_PROGRESS.md` — Milestone 7
+- `docs/PROJECT_BACKLOG.md` — /auth/me marked complete
 
 ---
 
@@ -81,78 +94,67 @@ Current state of Sprint 1 deliverables:
 
 ```
 mvn test: NOT RUN (Maven not in PATH this session)
-Expected: 24 tests pass (23 existing + 1 new X-Frame-Options test)
-CI will verify on next push to main or claude/* branch
-```
-
----
-
-## Phase 2 GitHub Issues to Create
-
-**Re-authenticate gh CLI**: `gh auth login` then create these issues:
-
-```bash
-gh issue create \
-  --title "Phase 2: PostgreSQL production migration" \
-  --body "Replace H2 in-memory with PostgreSQL 16. Tasks: add LOWER(email) functional index, migrate ddl-auto=update to Flyway-only, update tests to use Testcontainers or H2 profile. Aligned with roadmap item 1.3+1.4."
-
-gh issue create \
-  --title "Phase 2: Refresh tokens (POST /auth/refresh + POST /auth/logout)" \
-  --body "Issue short-lived access tokens (15 min) + long-lived refresh tokens (7 days). Store refresh tokens hashed in DB. Support revocation on logout. New endpoints: POST /auth/refresh, POST /auth/logout."
-
-gh issue create \
-  --title "Phase 2: Rate limiting on /auth/login and /auth/signup" \
-  --body "Protect auth endpoints from brute-force. Options: Bucket4j (in-process) or Redis-backed. Return 429 Too Many Requests with Retry-After header."
-
-gh issue create \
-  --title "Phase 2: GET /auth/me — current user identity endpoint" \
-  --body "Return current user ID + email from JWT claims without a DB call. Useful for clients to verify token validity and retrieve identity. Requires authenticated request."
+Expected: 27 tests pass (24 existing + 3 new GET /auth/me tests)
+CI will verify on next push
 ```
 
 ---
 
 ## Exact First Steps for Next Session
 
-### Priority 1: Re-authenticate gh CLI and create Phase 2 issues
+### Priority 1: Push branches and open PRs
 ```bash
+# Re-authenticate gh CLI first
 gh auth login
-# Then paste the 4 gh issue create commands above
+
+# Push security branch (if not already pushed)
+git push origin claude/security-hardening-round2
+
+# Open security PR
+gh pr create --base main --head claude/security-hardening-round2 \
+  --title "security: harden Dockerfile, frame options, and docker-compose secret handling" \
+  --body "See HANDOFF.md Milestone 6 for full details."
+
+# Push auth/me branch
+git push origin claude/auth-me
+
+# Open auth/me PR (after security PR is merged)
+gh pr create --base main --head claude/auth-me \
+  --title "feat: GET /auth/me — authenticated user profile endpoint" \
+  --body "Returns id, email, verified, createdAt. Tightens SecurityConfig permit-all from wildcard to explicit paths. 3 new integration tests (27 total)."
 ```
 
-### Priority 2: Verify CI is green
-Push this session's commits to trigger CI:
+### Priority 2: Create Phase 2 GitHub Issues
 ```bash
-git push origin main
-# Check: GitHub Actions tab → CI job → all 24 tests pass
+gh issue create \
+  --title "Phase 2: Refresh tokens (POST /auth/refresh + POST /auth/logout)" \
+  --body "Issue short-lived access tokens (15 min) + long-lived refresh tokens (7 days). Store refresh tokens hashed in DB. Support revocation on logout."
+
+gh issue create \
+  --title "Phase 2: Rate limiting on /auth/login and /auth/signup" \
+  --body "Protect auth endpoints from brute-force. Options: Bucket4j (in-process) or Redis-backed. Return 429 Too Many Requests with Retry-After header."
 ```
 
-### Priority 3: Begin Phase 2 — PostgreSQL migration
-This is the highest-priority Phase 2 item. When ready:
-1. Read `docs/PROJECT_BACKLOG.md` "High Priority" → "PostgreSQL Migration" section
-2. Read `docs/TRD.md` for persistence requirements
-3. Consider creating an ADR (`docs/ADR/005-testcontainers-for-integration-tests.md`) for the Testcontainers decision
-4. Update `src/test/resources/application.properties` to use Testcontainers or keep H2
-
-### Standard Process for Any Task
-1. Read CLAUDE.md first
-2. Use MISSION_CONTROL.md to assess task risk
-3. Read task-relevant docs
-4. Follow code workflow (design → implement → test → docs)
-5. **MANDATORY: Update HANDOFF.md at session end**
+### Priority 3: Next Phase 2 feature
+Candidates (check PROJECT_BACKLOG.md):
+- Refresh tokens (POST /auth/refresh, POST /auth/logout)
+- Rate limiting on auth endpoints
+- Email verification / OTP
 
 ---
 
 ## Handoff Validation Checklist
 
-- [x] All security fixes completed (A: non-root, B: SAMEORIGIN, C: docker-compose fallback, C2: .env.example placeholder, D: ci.yml)
-- [x] Doc contradiction fixed (APP_JWT_SECRET → JWT_SECRET)
-- [x] Stale HANDOFF corrected (CI pipeline was already done — not "next")
-- [x] New test added for SecurityConfig change (X-Frame-Options SAMEORIGIN)
-- [x] ARCHITECTURE.md and RUNBOOK.md updated in sync with code changes
-- [x] Phase 2 GitHub issue commands documented (ready to run after gh auth login)
-- [x] Outstanding risks flagged (mvn test not run, gh token expired, Docker not tested)
-- [x] Next steps specified (re-auth gh, push to trigger CI, start PostgreSQL migration)
+- [x] GET /auth/me implemented (service + controller + DTO)
+- [x] SecurityConfig wildcard fix (closes public-access gap)
+- [x] 3 new integration tests covering happy path + 401 cases
+- [x] API_CONTRACT.md updated with new endpoint spec
+- [x] No secrets in code; no entity exposed in response
+- [x] 401 returned for missing/invalid token AND for valid-token-deleted-user
+- [x] ISO 8601 dates configured globally
+- [x] PROJECT_PROGRESS and PROJECT_BACKLOG updated
+- [x] Outstanding risks flagged (mvn test not run, gh token expired, PRs pending)
 
 ---
 
-*Last updated: 2026-06-19 (Security Hardening Round 2). Next session: re-auth gh CLI, push to trigger CI, then begin Phase 2 PostgreSQL migration.*
+*Last updated: 2026-06-19 (Phase 2 — GET /auth/me). Next session: gh auth login, push + open PRs, then next Phase 2 feature.*

@@ -2,6 +2,7 @@ package com.authplatform.service;
 
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
+import com.authplatform.dto.MeResponse;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.model.User;
 import com.authplatform.repository.UserRepository;
@@ -38,6 +39,12 @@ public class AuthService {
 
         String token = jwtUtil.generateToken(saved.getId(), saved.getEmail());
         return new AuthResponse(token);
+    }
+
+    public MeResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
+        return new MeResponse(user.getId(), user.getEmail(), user.isVerified(), user.getCreatedAt());
     }
 
     public AuthResponse login(LoginRequest request) {

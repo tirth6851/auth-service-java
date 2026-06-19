@@ -55,9 +55,9 @@ _(Nothing blocking. Phase 1 is complete and stable.)_
 - `JwtAuthenticationFilter` checks denylist before accepting token
 - Required for security-sensitive deployments
 
-### `/auth/me` Endpoint
-- `GET /auth/me` — return current user's ID and email from the JWT claims
-- Useful for clients to verify token validity and retrieve identity without a separate DB call
+### ✅ `/auth/me` Endpoint — COMPLETE (branch `claude/auth-me`)
+- `GET /auth/me` — returns id, email, verified, createdAt from database (DB-backed for richer response)
+- Requires valid Bearer token; 401 on missing/invalid token or deleted user
 
 ---
 

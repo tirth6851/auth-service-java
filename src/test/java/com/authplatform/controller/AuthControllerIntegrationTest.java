@@ -142,6 +142,42 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // --- GET /auth/me tests ---
+
+    @Test
+    void authMe_returns200WithUserData_whenValidToken() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"meuser@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = JsonPath.read(signupResponse, "$.token");
+
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.email").value("meuser@example.com"))
+                .andExpect(jsonPath("$.verified").value(false))
+                .andExpect(jsonPath("$.createdAt").isString());
+    }
+
+    @Test
+    void authMe_returns401_whenNoToken() throws Exception {
+        mockMvc.perform(get("/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authMe_returns401_whenInvalidToken() throws Exception {
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer not.a.valid.token"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // --- Security header tests ---
 
     @Test

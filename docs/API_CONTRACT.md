@@ -2,7 +2,7 @@
 
 ## Overview
 
-Auth Platform exposes two stateless HTTP endpoints for user signup and login. Both return JWT tokens. No authentication is required for these endpoints.
+Auth Platform exposes stateless HTTP endpoints for authentication and user identity. Signup and login return JWT tokens. Protected endpoints require a valid Bearer token in the `Authorization` header.
 
 ## Endpoints
 
@@ -113,6 +113,55 @@ curl -X POST http://localhost:8080/auth/login \
 
 ---
 
+### GET /auth/me
+
+Return the authenticated user's profile from the database.
+
+**Request:**
+```
+GET /auth/me
+```
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:** None
+
+**Auth:** Required — valid JWT Bearer token
+
+**Response (200 OK):**
+```json
+{
+  "id": 42,
+  "email": "user@example.com",
+  "verified": false,
+  "createdAt": "2024-06-19T12:00:00Z"
+}
+```
+
+**Fields:**
+- `id`: User's numeric database ID
+- `email`: User's email address (lowercased)
+- `verified`: Whether the user has verified their email (always `false` — email verification not yet implemented)
+- `createdAt`: ISO 8601 UTC timestamp of account creation
+
+**Errors:**
+
+| Status | Error | Cause |
+|--------|-------|-------|
+| 401 | Unauthorized | Missing, invalid, or expired token |
+| 500 | An unexpected error occurred | Server-side exception |
+
+**Example curl:**
+```bash
+curl http://localhost:8080/auth/me \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
 ### GET /actuator/health
 
 Health check endpoint for load balancers, monitoring, and orchestration systems.
@@ -209,7 +258,7 @@ All errors return a standardized JSON error object:
 
 ## Authentication for Protected Routes
 
-For future endpoints that require authentication, include JWT token in header:
+For endpoints that require authentication (e.g., `GET /auth/me`), include the JWT token in the header:
 
 ```
 Authorization: Bearer <token>
