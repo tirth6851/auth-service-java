@@ -142,6 +142,19 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // --- Security header tests ---
+
+    @Test
+    void responses_includeXFrameOptionsSameOrigin() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"frametest@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
+    }
+
     // --- Error response shape tests ---
 
     @Test

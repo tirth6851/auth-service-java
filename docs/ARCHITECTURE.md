@@ -125,6 +125,36 @@ HTTP status codes:
 - 409: Conflict (duplicate email)
 - 500: Internal Server Error (unexpected exceptions)
 
+## Deployment Model
+
+### Local Development
+- **Container**: None (direct JVM on host)
+- **Database**: H2 in-memory
+- **Config**: `application.properties`
+- **Start**: `mvn spring-boot:run`
+
+### Docker Compose (Local Prod-like)
+- **Container**: Alpine JRE 17 (runtime image)
+- **Database**: PostgreSQL 16 (separate container)
+- **Config**: Environment variables + `application-prod.properties`
+- **Start**: `docker-compose up --build`
+- **Health checks**: Both services monitored; app depends_on postgres health
+
+### Production
+- **Container**: Docker image (built via Dockerfile)
+- **Database**: Managed PostgreSQL (RDS, Cloud SQL, etc.)
+- **Reverse proxy**: nginx/HAProxy (HTTPS termination)
+- **Orchestration**: Kubernetes or container-based (ECS, Cloud Run, etc.)
+- **Secrets**: HashiCorp Vault / Cloud Secrets Manager
+- **Logging**: Centralized (CloudWatch, ELK, DataDog)
+- **Monitoring**: Health check endpoint + APM
+
+### Dockerfile Strategy
+- **Stage 1**: Maven build (compile + test + package)
+- **Stage 2**: Runtime (JRE 17 on Alpine, minimal attack surface)
+- **Runtime user**: Non-root `spring` system user (least-privilege)
+- **Health check**: `wget --spider /actuator/health` every 30s
+
 ## Deployment Assumptions
 
 - Spring Boot embedded Tomcat serves HTTP
@@ -132,3 +162,4 @@ HTTP status codes:
 - JWT secret is injected via environment variable or secure config system
 - H2 in-memory database is for dev/test only; production uses persistent DB
 - Stateless design allows horizontal scaling (any instance can validate JWT)
+- PostgreSQL is required for production (not H2)

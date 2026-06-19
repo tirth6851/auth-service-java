@@ -92,7 +92,7 @@ git status                        # Check for uncommitted changes
 
 ### Environment
 ```bash
-export APP_JWT_SECRET="demo-secret-minimum-32-characters-long-12345"
+export JWT_SECRET="demo-secret-minimum-32-characters-long-12345"
 # (Never use demo secret in production)
 ```
 

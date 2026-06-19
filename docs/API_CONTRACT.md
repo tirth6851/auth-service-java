@@ -113,6 +113,48 @@ curl -X POST http://localhost:8080/auth/login \
 
 ---
 
+### GET /actuator/health
+
+Health check endpoint for load balancers, monitoring, and orchestration systems.
+
+**Request:**
+```
+GET /actuator/health
+```
+
+**Headers:**
+```
+Accept: application/json
+```
+
+**Query Parameters:** None
+
+**Auth:** Not required
+
+**Response (200 OK):**
+```json
+{
+  "status": "UP",
+  "components": {
+    "db": {
+      "status": "UP",
+      "details": {...}
+    }
+  }
+}
+```
+
+**Response (503 Service Unavailable):** If database or other critical components are down.
+
+**Example curl:**
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+**Use case:** Docker health checks, Kubernetes liveness probes, load balancer health checks.
+
+---
+
 ## JWT Token Format
 
 **Type:** Bearer token (include in `Authorization` header for protected endpoints)

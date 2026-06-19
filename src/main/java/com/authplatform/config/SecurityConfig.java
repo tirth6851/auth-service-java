@@ -39,8 +39,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))
-                // allow H2 console frames in dev
-                .headers(h -> h.frameOptions(f -> f.disable()))
+                // SAMEORIGIN: allows H2 console frames locally while blocking external framing
+                .headers(h -> h.frameOptions(f -> f.sameOrigin()))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -1,208 +1,158 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (final)  
+**Last updated**: 2026-06-19 (Security Hardening Round 2)  
 **Branch**: main  
-**Commit**: `fd08df2` (docs: add professional documentation framework and CI/CD pipeline)  
+**Last commit before this session**: `89ad000` (docs: update HANDOFF.md with Sprint 1 Batch 1 completion)
 
 ---
 
 ## What Was Completed This Session
 
-### Documentation Framework (17 files)
-- ✅ Rewrote CLAUDE.md (tight, authoritative, 8 non-negotiable rules)
-- ✅ Updated CLAUDE_SESSION_START.md (strict 8-step entry checklist + mandatory reading order)
-- ✅ Created docs/PRD.md (product requirements document, Phase 1 scope)
-- ✅ Created docs/TRD.md (technical requirements, constraints, security, performance)
-- ✅ Created docs/MISSION_CONTROL.md (operating policy, decision authority matrix, task workflow)
-- ✅ Created docs/ARCHITECTURE.md (layered design, request flows, security boundaries)
-- ✅ Created docs/ENGINEERING_STANDARDS.md (coding rules, testing, security, forbidden patterns)
-- ✅ Created docs/API_CONTRACT.md (endpoint specs, error codes, JWT format)
-- ✅ Created docs/ENVIRONMENTS.md (local/test/prod config, secrets, profiles)
-- ✅ Created docs/RUNBOOK.md (run, test, debug, release, troubleshoot, deploy)
-- ✅ Created docs/TEST_STRATEGY.md (test layers, coverage, CI pipeline, fixtures)
-- ✅ Created 4 ADRs (JWT subject, thin controller rule, stateless auth, DTOs not entities)
-- ✅ Created docs/HANDOFF.md (session continuity mechanism)
-- ✅ Created DOCUMENTATION_COMPLETE.md (overview of entire framework)
+### Security Hardening Round 2 — 4 fixes + 1 doc correction
 
-### Automation Skills (4 files)
-- ✅ Created `.claude/skills/spring-auth-feature/SKILL.md` (feature implementation guide)
-- ✅ Created `.claude/skills/java-test-first/SKILL.md` (test-first methodology)
-- ✅ Created `.claude/skills/security-review/SKILL.md` (security audit automation)
-- ✅ Created `.claude/skills/release-checklist/SKILL.md` (pre-merge verification)
+**Fix A — Dockerfile: non-root runtime user**
+- Added `spring` system user/group in Stage 2 of Dockerfile
+- `USER spring` directive ensures container doesn't run as root
+- `docs/ARCHITECTURE.md` updated to note non-root user
 
-### CI/CD Pipeline
-- ✅ Created `.github/workflows/ci.yml` (GitHub Actions Maven pipeline)
-  - Runs on push to main and feature branches
-  - Runs on all pull requests
-  - Java 17 + Maven with dependency caching
-  - Executes `mvn -B verify` (compile + test + checks)
-  - Uploads JaCoCo coverage reports as artifacts
-- ✅ Updated docs/ENGINEERING_STANDARDS.md (CI as required gate for merges)
-- ✅ Updated docs/RUNBOOK.md (CI troubleshooting guide)
-- ✅ Updated docs/MISSION_CONTROL.md (CI status as red flag)
+**Fix B — SecurityConfig: X-Frame-Options SAMEORIGIN**
+- Changed `frameOptions(f -> f.disable())` → `frameOptions(f -> f.sameOrigin())`
+- Disabling frame options globally was a clickjacking risk in production
+- SAMEORIGIN still allows H2 console frames locally (same-origin only)
+- Added integration test: `responses_includeXFrameOptionsSameOrigin()` in `AuthControllerIntegrationTest`
+- Total tests: **24** (was 23)
+
+**Fix C — docker-compose: removed demo JWT_SECRET fallback**
+- Changed `${JWT_SECRET:-demo-secret-minimum-32-characters-long-12345}` → `${JWT_SECRET}`
+- Now docker-compose fails fast if JWT_SECRET is not set, matching the JwtUtil fail-fast design
+
+**Fix C2 — .env.example: replaced demo JWT_SECRET with JwtUtil-rejected placeholder**
+- Changed `JWT_SECRET=demo-secret-minimum-32-characters-long-12345` → `JWT_SECRET=ReplaceThisWithAStrongSecretOfAtLeast32Chars!`
+- The demo secret passed all three JwtUtil validation checks; standard onboarding (`cp .env.example .env` + `docker compose up`) would boot with the publicly-known weak secret
+- Now `.env.example` uses the exact PLACEHOLDER constant from JwtUtil.java:25, so `@PostConstruct init()` throws "app.jwt.secret is still the default placeholder" at startup
+- Closes the onboarding path gap left by the docker-compose fix alone
+- `docs/RUNBOOK.md` updated: prerequisites and environment table reflect the new requirement
+
+**Fix D — ci.yml: upgraded upload-artifact@v3 → @v4**
+- `actions/upload-artifact@v3` was deprecated by GitHub (Nov 2024)
+- No functional change; prevents CI deprecation warnings and eventual breakage
+
+**Doc contradiction fixed — CLAUDE_SESSION_START.md:95**
+- Changed `APP_JWT_SECRET` → `JWT_SECRET` (was inconsistent with every other file)
+- Spring property `app.jwt.secret` binds to `JWT_SECRET` env var (not `APP_JWT_SECRET`)
 
 ---
 
-## What Is In Progress
+## Stale HANDOFF Correction (from previous session)
 
-None. All planned work is complete and committed.
+The prior HANDOFF listed "Sprint 1 Batch 2: GitHub Actions CI Pipeline" as the NEXT task. This was incorrect — `.github/workflows/ci.yml` already existed in the repo (committed before the last 5 commits visible in `git log`). The Sprint 1 Batch 2 CI work was already done.
+
+Current state of Sprint 1 deliverables:
+- ✅ Sprint 1 Batch 1: Docker + docker-compose + /actuator/health (bb6df9e)
+- ✅ Sprint 1 Batch 2: GitHub Actions CI pipeline (already in .github/workflows/ci.yml)
+- ✅ Sprint 1 Batch 3: Security hardening round 2 (this session)
 
 ---
 
 ## Outstanding Risks or Blockers
 
-- ⚠️ **CI pipeline not yet tested** (no PRs have run through it yet)
-  - *Mitigation*: First feature PR will verify CI works
-  - *Next*: Monitor first PR for CI pass/fail behavior
-
-- ⚠️ **HANDOFF.md workflow is new** — contributors may forget to update at session end
-  - *Mitigation*: Added to CLAUDE.md as MANDATORY rule
-  - *Mitigation*: Reminder in CLAUDE_SESSION_START.md
-  - *Next*: Monitor first few sessions; add memory note if needed
-
-- ⚠️ **Reading order compliance** — first sessions may skip docs
-  - *Mitigation*: MISSION_CONTROL.md has red-flag escalation rules
-  - *Next*: Watch first few Claude sessions for compliance
+- ⚠️ **mvn test not run this session** — Maven was not in PATH. All changes are non-breaking (SecurityConfig SAMEORIGIN is backward-compatible; Dockerfile user change is runtime-only; docker-compose and ci.yml fixes have no test-time impact). CI will run `mvn -B verify` on the next push and catch any issues.
+- ⚠️ **gh CLI token expired** — Could not create Phase 2 GitHub issues automatically. See "Next Steps" below for the issue text to create manually.
+- ⚠️ **Docker build not tested** — Docker not in PATH locally. CI pipeline will test on push.
 
 ---
 
 ## Files Changed
 
-### Modified (3 files)
-- `CLAUDE.md` — complete rewrite (stricter, shorter, 8 non-negotiable rules)
-- `CLAUDE_SESSION_START.md` — complete rewrite (8-step checklist, mandatory reading order)
-- `docs/ENGINEERING_STANDARDS.md` — added CI/CD section, merge gate requirements
-- `docs/RUNBOOK.md` — added "CI/CD Pipeline" section with troubleshooting
-- `docs/MISSION_CONTROL.md` — added "CI Status Check" to red flags
-
-### Created (22 new files)
-**Documentation** (14 files):
-- `docs/PRD.md` — product requirements
-- `docs/TRD.md` — technical requirements
-- `docs/MISSION_CONTROL.md` — operating policy
-- `docs/ARCHITECTURE.md` — system design
-- `docs/ENGINEERING_STANDARDS.md` — coding rules (updated)
-- `docs/API_CONTRACT.md` — API specs
-- `docs/ENVIRONMENTS.md` — environment config
-- `docs/RUNBOOK.md` — operations (updated)
-- `docs/TEST_STRATEGY.md` — test strategy
-- `docs/HANDOFF.md` — session continuity
-- `DOCUMENTATION_COMPLETE.md` — framework overview
-- `docs/ADR/001-jwt-subject-is-userid.md`
-- `docs/ADR/002-thin-controller-rule.md`
-- `docs/ADR/003-stateless-jwt-auth.md`
-- `docs/ADR/004-dtos-not-entities.md`
-
-**Skills** (4 files):
-- `.claude/skills/spring-auth-feature/SKILL.md`
-- `.claude/skills/java-test-first/SKILL.md`
-- `.claude/skills/security-review/SKILL.md`
-- `.claude/skills/release-checklist/SKILL.md`
-
-**CI/CD** (1 file):
-- `.github/workflows/ci.yml` — GitHub Actions Maven pipeline
-
-**Total changes**: 22 files created, 3 files modified, 4,013 lines added, 124 lines removed
-
-### No code changes
-- No Java source files modified
-- No tests modified
-- No pom.xml changes
-- Build still compiles and all tests still pass
+### Modified (9 files)
+- `Dockerfile` — added non-root spring user (Stage 2)
+- `src/main/java/com/authplatform/config/SecurityConfig.java` — frameOptions SAMEORIGIN
+- `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — added X-Frame-Options test
+- `docker-compose.yml` — removed demo JWT_SECRET fallback
+- `.github/workflows/ci.yml` — upload-artifact@v3 → @v4
+- `CLAUDE_SESSION_START.md` — APP_JWT_SECRET → JWT_SECRET (line 95)
+- `.env.example` — JWT_SECRET changed from demo secret to JwtUtil-rejected placeholder
+- `docs/RUNBOOK.md` — updated Docker prerequisites section and JWT_SECRET example
+- `docs/ARCHITECTURE.md` — added non-root user note to Dockerfile Strategy section
 
 ---
 
 ## Tests Run & Results
 
+```
+mvn test: NOT RUN (Maven not in PATH this session)
+Expected: 24 tests pass (23 existing + 1 new X-Frame-Options test)
+CI will verify on next push to main or claude/* branch
+```
+
+---
+
+## Phase 2 GitHub Issues to Create
+
+**Re-authenticate gh CLI**: `gh auth login` then create these issues:
+
 ```bash
-mvn test
-# Result: All 23 tests pass (no code changes, no new failures)
+gh issue create \
+  --title "Phase 2: PostgreSQL production migration" \
+  --body "Replace H2 in-memory with PostgreSQL 16. Tasks: add LOWER(email) functional index, migrate ddl-auto=update to Flyway-only, update tests to use Testcontainers or H2 profile. Aligned with roadmap item 1.3+1.4."
 
-mvn clean compile -DskipTests
-# Result: Compiles successfully with no warnings
+gh issue create \
+  --title "Phase 2: Refresh tokens (POST /auth/refresh + POST /auth/logout)" \
+  --body "Issue short-lived access tokens (15 min) + long-lived refresh tokens (7 days). Store refresh tokens hashed in DB. Support revocation on logout. New endpoints: POST /auth/refresh, POST /auth/logout."
 
-git status
-# Result: Clean (no uncommitted changes)
+gh issue create \
+  --title "Phase 2: Rate limiting on /auth/login and /auth/signup" \
+  --body "Protect auth endpoints from brute-force. Options: Bucket4j (in-process) or Redis-backed. Return 429 Too Many Requests with Retry-After header."
+
+gh issue create \
+  --title "Phase 2: GET /auth/me — current user identity endpoint" \
+  --body "Return current user ID + email from JWT claims without a DB call. Useful for clients to verify token validity and retrieve identity. Requires authenticated request."
 ```
 
 ---
 
 ## Exact First Steps for Next Session
 
-### **If: Continuing with Phase 2 work (PostgreSQL, refresh tokens, etc.)**
+### Priority 1: Re-authenticate gh CLI and create Phase 2 issues
+```bash
+gh auth login
+# Then paste the 4 gh issue create commands above
+```
 
-1. Read `CLAUDE.md` (rules and reading order)
-2. Read `docs/HANDOFF.md` (what previous session did, what's next)
-3. Use MISSION_CONTROL.md to assess task risk (low/medium/high)
-4. Read task-relevant docs (ARCHITECTURE, ENGINEERING_STANDARDS, etc.)
-5. Check `docs/PROJECT_BACKLOG.md` to confirm work is prioritized
-6. Run `mvn test` to verify baseline is green
-7. Start work following code workflow in MISSION_CONTROL.md
-8. **Update HANDOFF.md at session end** (MANDATORY)
+### Priority 2: Verify CI is green
+Push this session's commits to trigger CI:
+```bash
+git push origin main
+# Check: GitHub Actions tab → CI job → all 24 tests pass
+```
 
-### **If: Testing the CI pipeline**
+### Priority 3: Begin Phase 2 — PostgreSQL migration
+This is the highest-priority Phase 2 item. When ready:
+1. Read `docs/PROJECT_BACKLOG.md` "High Priority" → "PostgreSQL Migration" section
+2. Read `docs/TRD.md` for persistence requirements
+3. Consider creating an ADR (`docs/ADR/005-testcontainers-for-integration-tests.md`) for the Testcontainers decision
+4. Update `src/test/resources/application.properties` to use Testcontainers or keep H2
 
-1. Create a small feature branch (e.g., `claude/test-ci-pipeline`)
-2. Make a trivial code change (e.g., add a comment, change one line)
-3. Push to remote: `git push -u origin claude/test-ci-pipeline`
-4. Create a draft PR to main
-5. Watch GitHub Actions tab — should see CI running
-6. Verify it passes (green check on PR)
-7. Confirm CI catches failures (intentionally fail a test, push, watch CI catch it)
-8. Delete feature branch when satisfied
-
-### **If: Onboarding a new contributor**
-
-1. Have them read `CLAUDE_SESSION_START.md` (entry point)
-2. Have them follow the mandatory reading order
-3. Have them read: PROJECT_CONTEXT, PROJECT_PROGRESS, PROJECT_DECISIONS, PROJECT_BACKLOG
-4. Have them watch how CI works (create test PR to see pipeline)
-
-### **If: Releasing or merging code**
-
-1. Ensure CI is green (check GitHub Actions on PR)
-2. Run `/release-checklist` skill locally
-3. Verify docs are updated in same commit as code
-4. Confirm coverage ≥ 80%
-5. Merge only after all checks pass
+### Standard Process for Any Task
+1. Read CLAUDE.md first
+2. Use MISSION_CONTROL.md to assess task risk
+3. Read task-relevant docs
+4. Follow code workflow (design → implement → test → docs)
+5. **MANDATORY: Update HANDOFF.md at session end**
 
 ---
 
 ## Handoff Validation Checklist
 
-- [x] All work completed documented above
-- [x] Outstanding risks flagged
-- [x] Files changed listed (22 created, 3 modified)
-- [x] Tests run and pass (23/23)
-- [x] Docs updated and committed
-- [x] Exact next steps specified
-- [x] No uncommitted changes
-- [x] HANDOFF.md refreshed
-- [x] Work pushed to remote (commit: fd08df2)
+- [x] All security fixes completed (A: non-root, B: SAMEORIGIN, C: docker-compose fallback, C2: .env.example placeholder, D: ci.yml)
+- [x] Doc contradiction fixed (APP_JWT_SECRET → JWT_SECRET)
+- [x] Stale HANDOFF corrected (CI pipeline was already done — not "next")
+- [x] New test added for SecurityConfig change (X-Frame-Options SAMEORIGIN)
+- [x] ARCHITECTURE.md and RUNBOOK.md updated in sync with code changes
+- [x] Phase 2 GitHub issue commands documented (ready to run after gh auth login)
+- [x] Outstanding risks flagged (mvn test not run, gh token expired, Docker not tested)
+- [x] Next steps specified (re-auth gh, push to trigger CI, start PostgreSQL migration)
 
 ---
 
-## Summary for Next Session
-
-**What was accomplished:**
-- ✅ Professional documentation framework (19 files: PRD, TRD, MISSION_CONTROL, ARCHITECTURE, standards, API, environments, runbook, test strategy, ADRs)
-- ✅ 4 automation skills (feature, testing, security, release)
-- ✅ GitHub Actions CI pipeline (.github/workflows/ci.yml)
-- ✅ Governance system (CLAUDE.md, CLAUDE_SESSION_START.md, MISSION_CONTROL.md, HANDOFF.md)
-
-**What's ready to use:**
-- ✅ Reading order is mandatory and clear (12-doc sequence)
-- ✅ CI/CD pipeline is live (runs on every push/PR)
-- ✅ Skills are available for automation
-- ✅ Decision authority is defined (MISSION_CONTROL.md)
-
-**What's next:**
-- Phase 2 work (PostgreSQL migration, refresh tokens, etc.) — pick from PROJECT_BACKLOG
-- Or: Test CI pipeline on first feature PR
-- Or: Onboard new contributor and watch them through the framework
-
-**Status**: ✅ Framework complete, tested locally, committed and pushed. All systems operational.
-
----
-
-*Last updated: 2026-06-19 (final session). Commit: fd08df2. Next session: read this handoff, then follow the reading order in CLAUDE_SESSION_START.md.*
+*Last updated: 2026-06-19 (Security Hardening Round 2). Next session: re-auth gh CLI, push to trigger CI, then begin Phase 2 PostgreSQL migration.*

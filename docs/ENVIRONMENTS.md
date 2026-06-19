@@ -233,12 +233,32 @@ java -jar auth-platform.jar
 
 ---
 
-## Health Check
+## Actuator Configuration
 
-Once `spring-boot-starter-actuator` is added, health endpoint:
-```bash
-curl http://localhost:8080/actuator/health
-# Response: {"status":"UP"}
+Spring Boot Actuator is enabled in all profiles (dev, test, prod).
+
+**Exposed endpoints:** `health` only (restrictive by default)
+
+**Dev (`application.properties`):**
+```properties
+management.endpoints.web.exposure.include=health
+management.endpoint.health.show-details=when-authorized
 ```
 
-Currently not configured; add as needed for production monitoring.
+**Prod (`application-prod.properties`):**
+```properties
+management.endpoints.web.exposure.include=health
+management.endpoint.health.show-details=when-authorized
+```
+
+**Health Check Endpoint:**
+```bash
+curl http://localhost:8080/actuator/health
+# Response: {"status":"UP","components":{...}}
+```
+
+**Used by:**
+- Docker health checks (see Dockerfile `HEALTHCHECK`)
+- Kubernetes liveness/readiness probes
+- Load balancer health checks
+- Monitoring systems (Datadog, New Relic, etc.)
