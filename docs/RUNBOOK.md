@@ -54,7 +54,8 @@ git push
 ### Prerequisites
 
 - Docker 20.10+ and docker-compose 2.0+
-- `.env` file with secrets (copy from `.env.example`)
+- `JWT_SECRET` env var set — app refuses to start without it or if it is the placeholder value
+- `.env` file with secrets (copy from `.env.example`, then set a real JWT_SECRET — `openssl rand -hex 32`)
 
 ### First Run with Docker
 
@@ -94,7 +95,7 @@ All variables sourced from `.env` file (never commit to git):
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| JWT_SECRET | HMAC key for JWT signing (min 32 chars) | demo-secret-... |
+| JWT_SECRET | HMAC key for JWT signing (min 32 chars) | (generate with `openssl rand -hex 32`) |
 | POSTGRES_DB | Database name | authdb |
 | POSTGRES_USER | Database user | authuser |
 | POSTGRES_PASSWORD | Database password | authpass |

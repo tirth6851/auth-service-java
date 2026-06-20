@@ -1,12 +1,25 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Open-source readiness + developer experience sprint)  
-**Branch**: `claude/refresh-tokens` (off `main`)  
-**Tests**: 39 passing (0 failures) — `mvn test` BUILD SUCCESS  
+**Last updated**: 2026-06-19 (Open-source readiness + developer experience sprint)
+**Branch**: `claude/refresh-tokens` (off `main`)
+**Tests**: 40 passing (0 failures) — `mvn test` BUILD SUCCESS
 
 ---
 
 ## What Was Completed This Session
+
+### Security Hardening Round 2 (merged to `main` as PR #9)
+
+These changes landed on `main` independently and are now merged in:
+
+- **`Dockerfile`**: non-root `spring` user in runtime stage (least-privilege container)
+- **`SecurityConfig`**: `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
+- **`docker-compose.yml`**: removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
+- **`.env.example`**: demo JWT_SECRET replaced with JwtUtil-rejected placeholder (closes onboarding-path gap)
+- **`.github/workflows/ci.yml`**: `upload-artifact@v3` → `@v4` (action deprecation fix)
+- **`CLAUDE_SESSION_START.md`**: corrected `APP_JWT_SECRET` → `JWT_SECRET`
+- **`docs/RUNBOOK.md`**, **`docs/ARCHITECTURE.md`**: updated to match changes
+- **`AuthControllerIntegrationTest`**: `responses_includeXFrameOptionsSameOrigin()` test added
 
 ### OpenAPI / Swagger UI
 
@@ -18,7 +31,7 @@
 - **DTOs**: Added `@Schema` (description, example) to `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`
 - **`exception/ErrorResponse.java`**: Added `@Schema` to record fields
 
-Swagger UI: `http://localhost:8080/swagger-ui.html`  
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 ### Contributor Readiness
@@ -35,7 +48,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 ### Observability
 
-- **`docs/OBSERVABILITY.md`** (new): logging baseline (what to log / not log), dev vs prod log levels, structured JSON logging setup guide (next step via logstash-logback-encoder), monitoring signals table with alert thresholds, Actuator health endpoint usage, future audit log event table
+- **`docs/OBSERVABILITY.md`** (new): logging baseline (recommended events, not yet implemented), dev vs prod log levels, structured JSON logging setup guide, monitoring signals table with alert thresholds, Actuator health endpoint usage, future audit log event table
 
 ### MCP Direction
 
@@ -48,7 +61,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 - Added Swagger UI step (step 4) to Quick Start
 - Added interactive docs pointer to API Reference section
 - Updated file structure tree to match actual repo
-- Updated test inventory counts (accurate: 8 JwtUtil, 5 AuthService, 24 integration)
+- Updated test inventory counts
 - Updated coverage gaps (Good First Issues framing)
 - Updated "What's Done" section: full current feature list (Phase 1 + 2 + 3)
 - Updated Roadmap: completed items marked ✅, remaining items as priority table with GitHub labels
@@ -58,7 +71,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 ## Outstanding Risks or Blockers
 
 - ⚠️ **V2 Flyway migration untestable locally** — same as previous session; PostgreSQL Testcontainers would give full coverage
-- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` is separate and should be merged first (or in parallel); 429 `@ApiResponse` was intentionally removed from `AuthController` on this branch since rate limiting is not present here — will be re-added when `claude/rate-limit-login` merges
+- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` is separate and should be merged first (or in parallel); 429 `@ApiResponse` intentionally removed from `AuthController` on this branch since rate limiting is not present here — will be re-added when `claude/rate-limit-login` merges
 - ⚠️ **Concurrent refresh race condition** — documented in ADR-005; acceptable for current scale
 - ⚠️ **Access token TTL still 1 hour** — should be 15 min in production; pure env config change
 
@@ -75,7 +88,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 | File | Change |
 |------|--------|
 | `pom.xml` | Added `springdoc-openapi-starter-webmvc-ui:2.5.0` |
-| `src/main/java/com/authplatform/config/SecurityConfig.java` | Swagger URLs added to `permitAll()` |
+| `src/main/java/com/authplatform/config/SecurityConfig.java` | Swagger URLs + CORS bean added; `sameOrigin()` kept from security-hardening PR |
 | `src/main/java/com/authplatform/controller/AuthController.java` | OpenAPI annotations on all endpoints |
 | `src/main/java/com/authplatform/dto/SignupRequest.java` | `@Schema` annotations |
 | `src/main/java/com/authplatform/dto/LoginRequest.java` | `@Schema` annotations |
@@ -84,6 +97,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 | `src/main/java/com/authplatform/dto/LogoutRequest.java` | `@Schema` annotations |
 | `src/main/java/com/authplatform/exception/ErrorResponse.java` | `@Schema` annotations |
 | `src/main/resources/application-prod.properties` | Swagger disabled in prod |
+| `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` | +3 tests: X-Frame-Options, OpenAPI docs, Swagger UI |
 
 ### New doc/repo files
 | File | Purpose |
@@ -98,7 +112,7 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
 ### Docs updated
 - `docs/ADR/006-mcp-agent-auth-architecture.md` — extended with contributor guide
-- `docs/PROJECT_PROGRESS.md` — Milestone 10 added
+- `docs/PROJECT_PROGRESS.md` — Milestones updated
 - `docs/PROJECT_BACKLOG.md` — open-source readiness sprint marked complete
 - `README.md` — badges, quick-start, file structure, test inventory, roadmap
 
@@ -107,14 +121,14 @@ OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 ## Tests Run & Results
 
 ```
-Tests run: 26, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
+Tests run: 27, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
 Tests run:  8, Failures: 0, Errors: 0 — JwtUtilTest
 Tests run:  5, Failures: 0, Errors: 0 — AuthServiceTest
 ─────────────────────────────────────────────────────
-Tests run: 39, Failures: 0, Errors: 0 — BUILD SUCCESS
+Tests run: 40, Failures: 0, Errors: 0 — BUILD SUCCESS
 ```
 
-New tests (this session): `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
+New tests (this merge): `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
 
 ---
 
@@ -122,8 +136,8 @@ New tests (this session): `openApiDocs_returns200_withoutAuth`, `swaggerUi_isRea
 
 ### Priority 1: Open PRs and merge
 1. Merge `claude/rate-limit-login` → `main` (simpler, no conflicts with this branch)
-2. Merge `claude/refresh-tokens` → `main` (this branch — includes all three sprints)
-3. Update `main` branch badges after merge (test count stays 37; CI badge auto-updates)
+2. Merge `claude/refresh-tokens` → `main` (this branch — includes all three sprints + security hardening merge)
+3. Update `main` branch badges after merge (test count stays 40; CI badge auto-updates)
 
 ### Priority 2: Good First Issues to label in GitHub
 These are well-scoped, documented, and low-risk for external contributors:
@@ -140,7 +154,7 @@ These are well-scoped, documented, and low-risk for external contributors:
 
 ### Standard process
 1. Read `CLAUDE.md` + this `HANDOFF.md` first
-2. Run `mvn test` (must stay at 37 passing, 0 failures)
+2. Run `mvn test` (must stay at 40 passing, 0 failures)
 3. For any auth/config change: run `/security-review`
 4. Update `HANDOFF.md` before ending session
 
@@ -148,4 +162,4 @@ These are well-scoped, documented, and low-risk for external contributors:
 
 ## Summary
 
-Sprint added: OpenAPI/Swagger UI (working, disabled in prod), contributor docs (CONTRIBUTING, CODE_OF_CONDUCT, GitHub templates), DEPLOYMENT.md (deployment guide), OBSERVABILITY.md (logging/monitoring baseline), and ADR-006 extended with MCP contributor guide. README fully updated. Security review passed (2 warnings, 0 failures). 39 tests passing (2 new Swagger integration tests added). Branch `claude/refresh-tokens` now carries all Phase 2 + 3 work and is ready for PR.
+Sprint added: OpenAPI/Swagger UI (working, disabled in prod), contributor docs (CONTRIBUTING, CODE_OF_CONDUCT, GitHub templates), DEPLOYMENT.md (deployment guide), OBSERVABILITY.md (logging/monitoring baseline), and ADR-006 extended with MCP contributor guide. Security hardening PR #9 merged in (sameOrigin frame options, non-root Dockerfile, .env.example fix). README fully updated. Security review passed (2 warnings, 0 failures). 40 tests passing. Branch `claude/refresh-tokens` is ready for PR.

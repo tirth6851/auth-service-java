@@ -8,8 +8,11 @@ RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime with JRE
 FROM eclipse-temurin:17-jre-alpine
+RUN addgroup -S spring && adduser -S spring -G spring
 WORKDIR /app
 COPY --from=builder /app/target/auth-platform-*.jar auth-platform.jar
+RUN chown spring:spring auth-platform.jar
+USER spring
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
