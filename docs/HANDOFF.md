@@ -1,238 +1,146 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Sprint 1 Batch 1 complete)  
-**Branch**: main  
-**Commit**: `bb6df9e` (feat: add Docker, docker-compose, and /actuator/health endpoint)  
+**Last updated**: 2026-06-19 (Refresh tokens + logout + CORS + actuator security sprint)  
+**Branch**: `claude/refresh-tokens` (off `main`)  
+**Tests**: 37 passing (0 failures) — `mvn test` BUILD SUCCESS  
 
 ---
 
 ## What Was Completed This Session
 
-### Sprint 1 Batch 1: Docker + docker-compose + /actuator/health Endpoint
-- ✅ Added `spring-boot-starter-actuator` dependency to pom.xml (health endpoint)
-- ✅ Created multi-stage Dockerfile
-  - Stage 1: Maven 3.8 + OpenJDK 17 (compile + test + package)
-  - Stage 2: Alpine JRE 17 (lightweight runtime, minimal attack surface)
-  - HEALTHCHECK: `wget --spider /actuator/health` every 30s, 5s timeout, 3 retries
-- ✅ Created docker-compose.yml
-  - `postgres` service: PostgreSQL 16 Alpine, port 5432, health check, data volume
-  - `app` service: Built from Dockerfile, port 8080, depends_on postgres health
-  - Environment variables: JWT_SECRET, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-  - Health checks ensure service startup order and readiness
-- ✅ Created .env.example
-  - Documents all required environment variables
-  - Demo values for local development
-  - Clear warning about production secrets
-- ✅ Created .dockerignore
-  - Excludes .git, .env, docs, target, .idea, node_modules, etc.
-  - Optimizes Docker build context
-- ✅ Enabled /actuator/health endpoint
-  - Updated `application.properties` (dev): `management.endpoints.web.exposure.include=health`
-  - Updated `application-prod.properties`: Same config for prod readiness
-  - Show-details: `when-authorized` (security best practice)
-- ✅ Updated .gitignore
-  - Pattern `.env` blocks secrets, `!.env.example` allows template
-  - Prevents accidental secret commits
-- ✅ Updated API_CONTRACT.md
-  - Added GET /actuator/health endpoint documentation
-  - Use cases: Docker health checks, K8s probes, load balancer checks
-- ✅ Updated ENVIRONMENTS.md
-  - Added "Actuator Configuration" section
-  - Documents management endpoints and health check details
-- ✅ Updated RUNBOOK.md
-  - Added "Docker Deployment" section with full usage instructions
-  - Environment setup, health check verification, logs, common commands
-- ✅ Updated ARCHITECTURE.md
-  - Added "Deployment Model" section covering dev, Docker, and prod
-  - Explained Dockerfile strategy and health check mechanism
-- ✅ Committed: `bb6df9e` (feat: add Docker, docker-compose, and /actuator/health endpoint)
+### Main Feature — Refresh Tokens + Logout
 
----
+- **`RefreshToken` entity** (`model/RefreshToken.java`): `id`, `token` (SHA-256 hash), `userId`, `expiresAt`, `createdAt`, `revokedAt`
+- **`RefreshTokenRepository`** (`repository/RefreshTokenRepository.java`): `findByToken(String)`
+- **`RefreshTokenService`** (`service/RefreshTokenService.java`):
+  - `createToken(Long userId)` — generates UUID, stores SHA-256 hash, returns raw UUID to caller
+  - `validateAndRotate(String rawToken)` — validates (not expired, not revoked), sets `revokedAt`, returns entity; `@Transactional`
+  - `revokeToken(String rawToken)` — for logout; returns 401 if not found, 204 if already revoked (idempotent)
+  - SHA-256 hashing via Java 17 `MessageDigest` + `HexFormat` — no extra dependencies
+- **`AuthService`** updated: `signup` and `login` now return a token pair; `refresh` and `logout` methods added; `@Transactional` on `refresh`
+- **`AuthController`** updated: `POST /auth/refresh` (returns 200 + new pair) and `POST /auth/logout` (returns 204)
+- **`RefreshRequest.java`**, **`LogoutRequest.java`** DTOs
+- **`AuthResponse.java`** updated: added `refreshToken` field; `@JsonInclude(NON_NULL)` added — backward-compatible
+- **`V2__create_refresh_tokens_table.sql`** Flyway migration for PostgreSQL prod (dev/test use H2 + `ddl-auto=update`)
 
-## What Is In Progress
+### CORS Configuration
 
-None. Sprint 1 Batch 1 complete and committed.
+- `CorsConfigurationSource` bean in `SecurityConfig.java`
+- Allowed origins configured via `app.cors.allowed-origins` (`@Value` with default `http://localhost:3000,http://localhost:5173`)
+- `.cors(cors -> cors.configurationSource(...))` registered before CSRF in the security chain
+- Allows: `GET, POST, PUT, DELETE, OPTIONS` + `Authorization, Content-Type` headers + credentials
+
+### Actuator Health Security
+
+- `/actuator/health` added to `permitAll()` in `SecurityConfig` — accessible without JWT
+- Was already exposed via `management.endpoints.web.exposure.include=health`
+
+### Tests (10 new integration tests)
+
+- `signup_returnsRefreshToken` — refreshToken present in signup response
+- `login_returnsRefreshToken` — refreshToken present in login response
+- `refresh_returnsNewTokenPair_whenValid` — happy path refresh
+- `refresh_returns401_whenExpired` — seeds expired row via `refreshTokenRepository` directly (no Thread.sleep)
+- `refresh_returns401_whenRevoked` — logout then refresh → 401
+- `refresh_returns401_whenInvalidToken` — garbage token → 401
+- `logout_returns204_whenValid` — happy path logout
+- `logout_returns401_whenInvalidToken` — garbage token → 401
+- `actuatorHealth_returns200_withoutAuth` — health without JWT → 200
+- `cors_allowedOriginReceivesCorsHeaders` — `Access-Control-Allow-Origin` header present
+
+`AuthServiceTest` updated: added `@Mock RefreshTokenService refreshTokenService` + updated constructor call (3 args → 4).
+
+### ADRs
+
+- **ADR-005** (`docs/ADR/005-refresh-token-design.md`): refresh token rationale (SHA-256 vs bcrypt, rotation, revocation model, known limitations)
+- **ADR-006** (`docs/ADR/006-mcp-agent-auth-architecture.md`): MCP/agent-auth dual-mode architecture note
+
+### Docs Updated
+
+- `docs/API_CONTRACT.md` — complete rewrite: correct response shapes, all 5 endpoints, CORS section, error format
+- `docs/PROJECT_PROGRESS.md` — Milestone 9 added
+- `docs/PROJECT_BACKLOG.md` — refresh tokens + CORS marked complete; backlog reorganized
+- `CLAUDE_SESSION_START.md` — fixed `APP_JWT_SECRET` typo → `JWT_SECRET`; updated API list
 
 ---
 
 ## Outstanding Risks or Blockers
 
-- ⚠️ **Docker image not yet tested with full Maven build**
-  - *Reason*: Maven not available in current environment; Docker build will verify Maven stage
-  - *Mitigation*: Next priority is CI pipeline (GitHub Actions) to test Docker build in cloud
-  - *Next*: Run `docker-compose up --build` locally when Maven becomes available, OR run CI pipeline
-
-- ⚠️ **CI pipeline not yet tested** (GitHub Actions workflow exists but no Docker PR yet)
-  - *Mitigation*: Next task is to run a CI-verified build (Sprint 1 Batch 2: GitHub Actions)
-  - *Next*: Set up GitHub Actions workflow to build and test Docker image
-
-- ⚠️ **PostgreSQL container health check untested**
-  - *Reason*: Docker not executed locally (Maven constraint)
-  - *Mitigation*: Docker health checks are standard patterns; will verify in CI
-  - *Next*: CI pipeline will execute docker-compose up and verify health endpoints
+- ⚠️ **V2 Flyway migration untestable locally** — Flyway is disabled in dev/test (H2 with `ddl-auto=update`). The migration `V2__create_refresh_tokens_table.sql` runs only against PostgreSQL in production. It was hand-validated against the `RefreshToken` entity's JPA mapping (snake_case columns, nullable `revoked_at`, `BIGINT REFERENCES users(id)`). CI with PostgreSQL testcontainers would give full coverage.
+- ⚠️ **Concurrent refresh race condition** — Two simultaneous refreshes with the same token can both succeed under `READ_COMMITTED` isolation. Documented in ADR-005. Mitigatable with `@Version` optimistic locking if needed.
+- ⚠️ **Access token TTL still 1 hour** — With refresh tokens deployed, production should reduce to 15 min (`app.jwt.expiration-ms=900000`). Noted in ADR-005. No code change needed; just env config.
+- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` has rate limiting for `POST /auth/login` (Bucket4j). It's not yet on `main`. The two branches diverged from main independently, so they should be merged separately (rate-limit first or in parallel).
 
 ---
 
-## Files Changed
+## Files Changed (This Session)
 
-### Created (5 new files)
-- `Dockerfile` — Multi-stage build (Maven compile → JRE runtime)
-- `docker-compose.yml` — PostgreSQL + app services with health checks
-- `.env.example` — Environment variable template (not secrets)
-- `.dockerignore` — Docker build context optimization
-- `docs/HANDOFF.md` — Session tracking (THIS FILE)
+### New source files
+| File | Purpose |
+|------|---------|
+| `src/main/java/com/authplatform/model/RefreshToken.java` | JPA entity |
+| `src/main/java/com/authplatform/repository/RefreshTokenRepository.java` | Spring Data JPA |
+| `src/main/java/com/authplatform/service/RefreshTokenService.java` | Issue/validate/rotate/revoke |
+| `src/main/java/com/authplatform/dto/RefreshRequest.java` | POST /auth/refresh request DTO |
+| `src/main/java/com/authplatform/dto/LogoutRequest.java` | POST /auth/logout request DTO |
+| `src/main/resources/db/migration/V2__create_refresh_tokens_table.sql` | PostgreSQL migration |
+| `docs/ADR/005-refresh-token-design.md` | ADR |
+| `docs/ADR/006-mcp-agent-auth-architecture.md` | ADR |
 
-### Modified (7 files)
-- `pom.xml` — added `spring-boot-starter-actuator` dependency
-- `src/main/resources/application.properties` — added actuator health config
-- `src/main/resources/application-prod.properties` — added actuator health config
-- `.gitignore` — added `!.env.example` to allow template
-- `docs/API_CONTRACT.md` — added GET /actuator/health endpoint documentation
-- `docs/ARCHITECTURE.md` — added Deployment Model section
-- `docs/ENVIRONMENTS.md` — added Actuator Configuration section
-- `docs/RUNBOOK.md` — added Docker Deployment section (40+ lines)
+### Modified source files
+| File | Change |
+|------|--------|
+| `src/main/java/com/authplatform/dto/AuthResponse.java` | Added `refreshToken` field + `@JsonInclude(NON_NULL)` |
+| `src/main/java/com/authplatform/service/AuthService.java` | Integrated RefreshTokenService; added refresh/logout methods |
+| `src/main/java/com/authplatform/controller/AuthController.java` | Added POST /auth/refresh + POST /auth/logout |
+| `src/main/java/com/authplatform/config/SecurityConfig.java` | Added CORS bean + `/actuator/health` to permitAll |
+| `src/main/resources/application.properties` | Added CORS + refresh TTL + Jackson timestamp config |
+| `src/test/resources/application.properties` | Added CORS + refresh TTL + Jackson timestamp config |
+| `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` | 10 new tests + `@Autowired RefreshTokenRepository` |
+| `src/test/java/com/authplatform/service/AuthServiceTest.java` | Added `@Mock RefreshTokenService` |
 
-**Total changes**: 5 files created, 8 files modified, ~304 lines added
-
-### No Java source changes
-- No Java source code modified (only pom.xml + config)
-- No test files modified
-- No business logic changed
-- No database migrations added (already in place from previous session)
+### Docs updated
+- `docs/API_CONTRACT.md`, `docs/PROJECT_PROGRESS.md`, `docs/PROJECT_BACKLOG.md`, `docs/HANDOFF.md`, `CLAUDE_SESSION_START.md`
 
 ---
 
 ## Tests Run & Results
 
-```bash
-git status
-# Result: On branch main, 3 commits ahead of origin/main
-#         All changes committed, working tree clean
-
-git log --oneline -2
-# Result: 
-#   bb6df9e feat: add Docker, docker-compose, and /actuator/health endpoint
-#   e51d94f feat: add PostgreSQL + Flyway database migration support
+```
+Tests run: 24, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
+Tests run:  8, Failures: 0, Errors: 0 — JwtUtilTest
+Tests run:  5, Failures: 0, Errors: 0 — AuthServiceTest
+─────────────────────────────────────────────────────
+Tests run: 37, Failures: 0, Errors: 0 — BUILD SUCCESS
 ```
 
-**Note**: Full `mvn test` verification is pending (Maven not in PATH in current environment).
+---
 
-**Verification performed**:
-- ✅ Syntax validation: Dockerfile, docker-compose.yml, pom.xml are valid YAML/XML
-- ✅ Configuration syntax: application.properties and application-prod.properties verified
-- ✅ Documentation: All docs cross-checked for consistency
-- ✅ Git state: All changes committed cleanly
-- ✅ Docker image structure: Dockerfile multi-stage pattern verified (standard Spring Boot pattern)
+## Exact Next Steps
 
-**What still needs verification**:
-- Docker build will be tested via CI pipeline (GitHub Actions)
-- Full test suite: `mvn test` (requires Maven availability or CI environment)
-- docker-compose startup: Requires Docker + PostgreSQL, will test via CI or local setup
+### Priority 1: Merge strategy (choose one)
+- Open PR for `claude/refresh-tokens` → merge to main
+- Optionally merge `claude/rate-limit-login` first (simpler, no conflict with this branch)
+- Then open PR for this branch on top of updated main
+
+### Priority 2: Production access token TTL
+- Set `app.jwt.expiration-ms=900000` (15 min) in production environment
+- No code change needed; pure config
+
+### Priority 3: Next feature candidates
+- `GET /auth/me` — return user info from JWT claims (low effort, high client value)
+- CI pipeline with PostgreSQL testcontainers — validates V2 migration
+- Rate limiting for `/auth/signup` — extend the Bucket4j interceptor
+- RBAC / scope claims — add `scopes` to JWT payload
+
+### Standard process
+1. Read `CLAUDE.md` + this `HANDOFF.md` first
+2. Run `mvn test` (must stay at 37 passing, 0 failures)
+3. For any auth/config change: run `/security-review`
+4. Update `HANDOFF.md` before ending session
 
 ---
 
-## Exact First Steps for Next Session
+## Summary
 
-### **Priority 1: Verify all Sprint 1 Batch 1 changes (MANDATORY)**
-
-1. Read this HANDOFF.md first (context + what changed)
-2. If Maven available locally: Run `mvn clean test` — verify all tests pass
-   - Expected: 23+ tests pass (no failures or skips)
-   - If failed: Check MISSION_CONTROL.md red flags and ENGINEERING_STANDARDS.md
-3. Verify Docker files syntax:
-   - `docker-compose config` (if Docker available)
-   - Or just validate YAML structure manually
-4. If tests pass: Ready for Sprint 1 Batch 2
-
-### **Priority 2: Sprint 1 Batch 2 - GitHub Actions CI Pipeline** (Next task)
-
-**Scope**: Set up automated CI/CD pipeline to test Docker build and run tests
-
-1. Read `docs/RUNBOOK.md` "CI/CD Pipeline" section (already has placeholder)
-2. Create `.github/workflows/ci.yml` with:
-   - Trigger: Push to main/claude/* or PR to main
-   - Matrix: Java 17 (Temurin) on ubuntu-latest
-   - Steps: Checkout → Setup Java → Cache Maven → Run `mvn -B verify` (compile + test)
-   - Optional: Upload JaCoCo coverage reports as artifacts
-3. Commit and push (will trigger CI on push)
-4. Verify green check in GitHub (Actions tab)
-5. Document in docs/ if CI runs successfully
-
-**Why now**: Docker image needs Maven build verification; CI is the only way without local Maven.
-
-### **Priority 3: If CI pipeline succeeds, proceed to Sprint 1 batch consolidation**
-- Verify Docker image builds in CI
-- Verify tests still pass (80%+ coverage)
-- Document any CI quirks in RUNBOOK.md
-- Then stop and report to user (end of Sprint 1 phase)
-
-### **Standard Process for Any Task**
-1. Read CLAUDE.md first (8 non-negotiable rules)
-2. Use MISSION_CONTROL.md to assess task risk
-3. Read task-relevant docs (ARCHITECTURE, ENGINEERING_STANDARDS, API_CONTRACT)
-4. Follow code workflow in MISSION_CONTROL.md (design → implement → test → docs)
-5. **MANDATORY: Update HANDOFF.md at session end with completion status**
-
----
-
-## Handoff Validation Checklist
-
-- [x] All Sprint 1 Batch 1 work completed and documented
-- [x] Outstanding risks clearly flagged (Docker build, Maven availability)
-- [x] Files changed listed (5 created, 8 modified, ~304 lines)
-- [x] Verification done (syntax checks, YAML/XML validation, git status clean)
-- [x] All docs updated (API_CONTRACT, ARCHITECTURE, ENVIRONMENTS, RUNBOOK)
-- [x] Exact next steps specified (Sprint 1 Batch 2: CI pipeline)
-- [x] No uncommitted changes (`git status` clean)
-- [x] HANDOFF.md refreshed with session output
-- [x] Work committed to git (commit: bb6df9e)
-
----
-
-## Summary for Next Session
-
-**What was accomplished this session (Sprint 1 Batch 1):**
-- ✅ Dockerfile created (multi-stage: Maven build → Alpine JRE runtime)
-- ✅ docker-compose.yml created (PostgreSQL 16 + app service with health checks)
-- ✅ .env.example created (environment variable template, never commit secrets)
-- ✅ .dockerignore created (optimize build context)
-- ✅ spring-boot-starter-actuator added to pom.xml
-- ✅ /actuator/health endpoint enabled in all profiles
-- ✅ Four docs updated (API_CONTRACT, ARCHITECTURE, ENVIRONMENTS, RUNBOOK)
-- ✅ .gitignore fixed to allow .env.example while blocking .env
-- ✅ Committed: `bb6df9e` (feat: add Docker, docker-compose, and /actuator/health endpoint)
-
-**Current state:**
-- ✅ Phase 1 Spring Boot auth core working (signup, login, JWT)
-- ✅ Phase 2 database layer ready (PostgreSQL + Flyway configured, V1 migration)
-- ✅ **Sprint 1 Batch 1 COMPLETE**: Docker containerization + health endpoint ready
-- ⏳ Sprint 1 Batch 2: GitHub Actions CI pipeline (NEXT)
-- ⏳ Sprint 1 Batch 3+: Rate limiting, CORS, Refresh tokens, etc.
-
-**What's production-ready:**
-- Dockerfile (multi-stage, Alpine-based, verified pattern)
-- docker-compose.yml (local prod-like environment with PostgreSQL)
-- /actuator/health endpoint (deployment-ready, monitored)
-- Environment variable configuration (JWT_SECRET, POSTGRES_* all injectable)
-- Documentation (fully updated, clear deployment model)
-
-**What still needs verification:**
-1. Docker build (requires Maven or CI pipeline to test)
-2. Full test suite: `mvn test` (Maven environment needed)
-3. Health endpoint behavior under load (future performance testing)
-
-**What's next (MANDATORY sprint order):**
-1. **Sprint 1 Batch 2: GitHub Actions CI Pipeline** (HIGH PRIORITY)
-   - Creates `.github/workflows/ci.yml` 
-   - Runs `mvn verify` on every push/PR
-   - Verifies Docker build works in cloud
-   - Enables automated testing (80%+ coverage check)
-   - **Why now**: Docker needs Maven verification; only CI can test this
-   
-2. After Batch 2 succeeds: Sprint 2 features (rate limiting, CORS, refresh tokens)
-
-**Status**: ✅ Sprint 1 Batch 1 complete. Docker + health endpoint working and documented. Ready for CI pipeline setup.
-
----
-
-*Last updated: 2026-06-19 (Sprint 1 Batch 1 complete). Commit: bb6df9e. Next session: Implement GitHub Actions CI pipeline (Sprint 1 Batch 2).*
+Implemented refresh tokens + logout (main feature), CORS, and `/actuator/health` security fix in a single sprint. 37 tests pass. V2 Flyway migration ready for PostgreSQL. Two ADRs added. Branch `claude/refresh-tokens` is ready for PR.

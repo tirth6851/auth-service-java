@@ -2,7 +2,7 @@
 
 ![Java 17](https://img.shields.io/badge/Java-17-blue?logo=openjdk)
 ![Spring Boot 3.2.5](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen?logo=springboot)
-![Tests](https://img.shields.io/badge/tests-17%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![CI](https://img.shields.io/badge/CI-not%20configured-lightgrey)
 
@@ -15,13 +15,15 @@ A stateless JWT authentication REST API built with Spring Boot 3.2 and Java 17. 
 > **Phase 1 is feature-complete for local development. It is NOT production-ready.**
 > See [What's Missing / Roadmap](#whats-missing--roadmap) for a prioritised list of gaps that must be resolved before exposing this service to any public traffic.
 
-Phase 1 delivers:
-- Two endpoints: `POST /auth/signup` and `POST /auth/login`
-- JWT issued on success (HS256, 1-hour expiry by default)
+Phase 1 + Phase 2 (auth hardening) delivers:
+- `POST /auth/signup`, `POST /auth/login` — JWT access token + refresh token
+- `POST /auth/refresh` — token rotation (returns new pair, revokes old)
+- `POST /auth/logout` — revokes refresh token; session ended
+- `GET /actuator/health` — health check (no auth required)
 - BCrypt password hashing — passwords are never stored or returned in plaintext
-- Bean validation on all request fields
-- 17 automated tests (unit + integration) — all passing
-- H2 in-memory database (data is intentionally ephemeral in this phase)
+- CORS configured (`app.cors.allowed-origins`)
+- 37 automated tests (unit + integration) — all passing
+- H2 in-memory database (data is intentionally ephemeral in dev)
 
 ---
 

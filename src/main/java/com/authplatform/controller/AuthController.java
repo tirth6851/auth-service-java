@@ -2,6 +2,8 @@ package com.authplatform.controller;
 
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
+import com.authplatform.dto.LogoutRequest;
+import com.authplatform.dto.RefreshRequest;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.service.AuthService;
 import jakarta.validation.Valid;
@@ -29,5 +31,16 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshRequest request) {
+        return ResponseEntity.ok(authService.refresh(request.getRefreshToken()));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+        authService.logout(request.getRefreshToken());
+        return ResponseEntity.noContent().build();
     }
 }
