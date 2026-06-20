@@ -37,6 +37,18 @@ Replace H2 in-memory with PostgreSQL.
 
 ## Recently Completed
 
+### ✅ Open-Source Readiness Sprint (branch: claude/refresh-tokens, 2026-06-19)
+- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; `/swagger-ui.html`; `/v3/api-docs`; disabled in prod
+- **`OpenApiConfig.java`**: `@OpenAPIDefinition` + `@SecurityScheme` (bearerAuth JWT)
+- **All endpoints** annotated: `@Tag`, `@Operation`, `@ApiResponse`, `@Schema` on DTOs
+- **`CONTRIBUTING.md`**: branch guide, coding rules, test expectations, ADR process
+- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
+- **GitHub issue templates** (bug, feature) + PR template (security checklist)
+- **`docs/DEPLOYMENT.md`**: profiles, env vars, Docker, JAR, cloud, production checklist, rollback
+- **`docs/OBSERVABILITY.md`**: logging baseline, monitoring signals, future JSON logging guide
+- **`docs/ADR/006`** extended with MCP contributor guide
+- **`README.md`**: updated throughout — badges, Swagger quick-start, accurate roadmap
+
 ### ✅ Refresh Tokens (branch: claude/refresh-tokens, 2026-06-19)
 - `POST /auth/refresh` — validates refresh token, returns new token pair (rotated)
 - `POST /auth/logout` — revokes refresh token; idempotent

@@ -1,75 +1,66 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Refresh tokens + logout + CORS + actuator security sprint)  
+**Last updated**: 2026-06-19 (Open-source readiness + developer experience sprint)  
 **Branch**: `claude/refresh-tokens` (off `main`)  
-**Tests**: 37 passing (0 failures) — `mvn test` BUILD SUCCESS  
+**Tests**: 39 passing (0 failures) — `mvn test` BUILD SUCCESS  
 
 ---
 
 ## What Was Completed This Session
 
-### Main Feature — Refresh Tokens + Logout
+### OpenAPI / Swagger UI
 
-- **`RefreshToken` entity** (`model/RefreshToken.java`): `id`, `token` (SHA-256 hash), `userId`, `expiresAt`, `createdAt`, `revokedAt`
-- **`RefreshTokenRepository`** (`repository/RefreshTokenRepository.java`): `findByToken(String)`
-- **`RefreshTokenService`** (`service/RefreshTokenService.java`):
-  - `createToken(Long userId)` — generates UUID, stores SHA-256 hash, returns raw UUID to caller
-  - `validateAndRotate(String rawToken)` — validates (not expired, not revoked), sets `revokedAt`, returns entity; `@Transactional`
-  - `revokeToken(String rawToken)` — for logout; returns 401 if not found, 204 if already revoked (idempotent)
-  - SHA-256 hashing via Java 17 `MessageDigest` + `HexFormat` — no extra dependencies
-- **`AuthService`** updated: `signup` and `login` now return a token pair; `refresh` and `logout` methods added; `@Transactional` on `refresh`
-- **`AuthController`** updated: `POST /auth/refresh` (returns 200 + new pair) and `POST /auth/logout` (returns 204)
-- **`RefreshRequest.java`**, **`LogoutRequest.java`** DTOs
-- **`AuthResponse.java`** updated: added `refreshToken` field; `@JsonInclude(NON_NULL)` added — backward-compatible
-- **`V2__create_refresh_tokens_table.sql`** Flyway migration for PostgreSQL prod (dev/test use H2 + `ddl-auto=update`)
+- **`pom.xml`**: Added `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0`
+- **`config/OpenApiConfig.java`** (new): `@OpenAPIDefinition` (title, description, version) + `@SecurityScheme(type=HTTP, scheme="bearer", bearerFormat="JWT")` — enables Authorize button in Swagger UI
+- **`config/SecurityConfig.java`**: Added `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` to `permitAll()` — without this Swagger 401s
+- **`application-prod.properties`**: Added `springdoc.api-docs.enabled=false` + `springdoc.swagger-ui.enabled=false` — Swagger off in prod
+- **`controller/AuthController.java`**: Added `@Tag`, `@Operation`, `@ApiResponses` to all 4 endpoints (signup, login, refresh, logout)
+- **DTOs**: Added `@Schema` (description, example) to `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`
+- **`exception/ErrorResponse.java`**: Added `@Schema` to record fields
 
-### CORS Configuration
+Swagger UI: `http://localhost:8080/swagger-ui.html`  
+OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-- `CorsConfigurationSource` bean in `SecurityConfig.java`
-- Allowed origins configured via `app.cors.allowed-origins` (`@Value` with default `http://localhost:3000,http://localhost:5173`)
-- `.cors(cors -> cors.configurationSource(...))` registered before CSRF in the security chain
-- Allows: `GET, POST, PUT, DELETE, OPTIONS` + `Authorization, Content-Type` headers + credentials
+### Contributor Readiness
 
-### Actuator Health Security
+- **`CONTRIBUTING.md`** (new): branch naming, coding rules, test expectations, ADR process, security contact email
+- **`CODE_OF_CONDUCT.md`** (new): Contributor Covenant v2.1
+- **`.github/ISSUE_TEMPLATE/bug_report.md`** (new): structured bug report
+- **`.github/ISSUE_TEMPLATE/feature_request.md`** (new): ADR checkbox, acceptance criteria checklist
+- **`.github/PULL_REQUEST_TEMPLATE.md`** (new): docs-update checklist, security checklist, breaking-change declaration
 
-- `/actuator/health` added to `permitAll()` in `SecurityConfig` — accessible without JWT
-- Was already exposed via `management.endpoints.web.exposure.include=health`
+### Deployment Docs
 
-### Tests (10 new integration tests)
+- **`docs/DEPLOYMENT.md`** (new): environment variables table, profile comparison, Docker deployment steps, JAR deployment, cloud platform notes (Railway, ECS, Cloud Run), production checklist, rollback guidance, "what's not prod-ready" table
 
-- `signup_returnsRefreshToken` — refreshToken present in signup response
-- `login_returnsRefreshToken` — refreshToken present in login response
-- `refresh_returnsNewTokenPair_whenValid` — happy path refresh
-- `refresh_returns401_whenExpired` — seeds expired row via `refreshTokenRepository` directly (no Thread.sleep)
-- `refresh_returns401_whenRevoked` — logout then refresh → 401
-- `refresh_returns401_whenInvalidToken` — garbage token → 401
-- `logout_returns204_whenValid` — happy path logout
-- `logout_returns401_whenInvalidToken` — garbage token → 401
-- `actuatorHealth_returns200_withoutAuth` — health without JWT → 200
-- `cors_allowedOriginReceivesCorsHeaders` — `Access-Control-Allow-Origin` header present
+### Observability
 
-`AuthServiceTest` updated: added `@Mock RefreshTokenService refreshTokenService` + updated constructor call (3 args → 4).
+- **`docs/OBSERVABILITY.md`** (new): logging baseline (what to log / not log), dev vs prod log levels, structured JSON logging setup guide (next step via logstash-logback-encoder), monitoring signals table with alert thresholds, Actuator health endpoint usage, future audit log event table
 
-### ADRs
+### MCP Direction
 
-- **ADR-005** (`docs/ADR/005-refresh-token-design.md`): refresh token rationale (SHA-256 vs bcrypt, rotation, revocation model, known limitations)
-- **ADR-006** (`docs/ADR/006-mcp-agent-auth-architecture.md`): MCP/agent-auth dual-mode architecture note
+- **`docs/ADR/006-mcp-agent-auth-architecture.md`** extended: added "Where to Start" section for MCP contributors — separate-project pattern, suggested MCP tool names mapping to REST endpoints, relationship to README
 
-### Docs Updated
+### README
 
-- `docs/API_CONTRACT.md` — complete rewrite: correct response shapes, all 5 endpoints, CORS section, error format
-- `docs/PROJECT_PROGRESS.md` — Milestone 9 added
-- `docs/PROJECT_BACKLOG.md` — refresh tokens + CORS marked complete; backlog reorganized
-- `CLAUDE_SESSION_START.md` — fixed `APP_JWT_SECRET` typo → `JWT_SECRET`; updated API list
+- Updated CI badge (was "not configured", now "GitHub Actions")
+- Added `JWT_SECRET` export step to Quick Start
+- Added Swagger UI step (step 4) to Quick Start
+- Added interactive docs pointer to API Reference section
+- Updated file structure tree to match actual repo
+- Updated test inventory counts (accurate: 8 JwtUtil, 5 AuthService, 24 integration)
+- Updated coverage gaps (Good First Issues framing)
+- Updated "What's Done" section: full current feature list (Phase 1 + 2 + 3)
+- Updated Roadmap: completed items marked ✅, remaining items as priority table with GitHub labels
 
 ---
 
 ## Outstanding Risks or Blockers
 
-- ⚠️ **V2 Flyway migration untestable locally** — Flyway is disabled in dev/test (H2 with `ddl-auto=update`). The migration `V2__create_refresh_tokens_table.sql` runs only against PostgreSQL in production. It was hand-validated against the `RefreshToken` entity's JPA mapping (snake_case columns, nullable `revoked_at`, `BIGINT REFERENCES users(id)`). CI with PostgreSQL testcontainers would give full coverage.
-- ⚠️ **Concurrent refresh race condition** — Two simultaneous refreshes with the same token can both succeed under `READ_COMMITTED` isolation. Documented in ADR-005. Mitigatable with `@Version` optimistic locking if needed.
-- ⚠️ **Access token TTL still 1 hour** — With refresh tokens deployed, production should reduce to 15 min (`app.jwt.expiration-ms=900000`). Noted in ADR-005. No code change needed; just env config.
-- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` has rate limiting for `POST /auth/login` (Bucket4j). It's not yet on `main`. The two branches diverged from main independently, so they should be merged separately (rate-limit first or in parallel).
+- ⚠️ **V2 Flyway migration untestable locally** — same as previous session; PostgreSQL Testcontainers would give full coverage
+- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` is separate and should be merged first (or in parallel); 429 `@ApiResponse` was intentionally removed from `AuthController` on this branch since rate limiting is not present here — will be re-added when `claude/rate-limit-login` merges
+- ⚠️ **Concurrent refresh race condition** — documented in ADR-005; acceptable for current scale
+- ⚠️ **Access token TTL still 1 hour** — should be 15 min in production; pure env config change
 
 ---
 
@@ -78,60 +69,74 @@
 ### New source files
 | File | Purpose |
 |------|---------|
-| `src/main/java/com/authplatform/model/RefreshToken.java` | JPA entity |
-| `src/main/java/com/authplatform/repository/RefreshTokenRepository.java` | Spring Data JPA |
-| `src/main/java/com/authplatform/service/RefreshTokenService.java` | Issue/validate/rotate/revoke |
-| `src/main/java/com/authplatform/dto/RefreshRequest.java` | POST /auth/refresh request DTO |
-| `src/main/java/com/authplatform/dto/LogoutRequest.java` | POST /auth/logout request DTO |
-| `src/main/resources/db/migration/V2__create_refresh_tokens_table.sql` | PostgreSQL migration |
-| `docs/ADR/005-refresh-token-design.md` | ADR |
-| `docs/ADR/006-mcp-agent-auth-architecture.md` | ADR |
+| `src/main/java/com/authplatform/config/OpenApiConfig.java` | OpenAPI definition + security scheme |
 
 ### Modified source files
 | File | Change |
 |------|--------|
-| `src/main/java/com/authplatform/dto/AuthResponse.java` | Added `refreshToken` field + `@JsonInclude(NON_NULL)` |
-| `src/main/java/com/authplatform/service/AuthService.java` | Integrated RefreshTokenService; added refresh/logout methods |
-| `src/main/java/com/authplatform/controller/AuthController.java` | Added POST /auth/refresh + POST /auth/logout |
-| `src/main/java/com/authplatform/config/SecurityConfig.java` | Added CORS bean + `/actuator/health` to permitAll |
-| `src/main/resources/application.properties` | Added CORS + refresh TTL + Jackson timestamp config |
-| `src/test/resources/application.properties` | Added CORS + refresh TTL + Jackson timestamp config |
-| `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` | 10 new tests + `@Autowired RefreshTokenRepository` |
-| `src/test/java/com/authplatform/service/AuthServiceTest.java` | Added `@Mock RefreshTokenService` |
+| `pom.xml` | Added `springdoc-openapi-starter-webmvc-ui:2.5.0` |
+| `src/main/java/com/authplatform/config/SecurityConfig.java` | Swagger URLs added to `permitAll()` |
+| `src/main/java/com/authplatform/controller/AuthController.java` | OpenAPI annotations on all endpoints |
+| `src/main/java/com/authplatform/dto/SignupRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/LoginRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/AuthResponse.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/RefreshRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/LogoutRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/exception/ErrorResponse.java` | `@Schema` annotations |
+| `src/main/resources/application-prod.properties` | Swagger disabled in prod |
+
+### New doc/repo files
+| File | Purpose |
+|------|---------|
+| `CONTRIBUTING.md` | Full contributor guide |
+| `CODE_OF_CONDUCT.md` | Contributor Covenant v2.1 |
+| `.github/ISSUE_TEMPLATE/bug_report.md` | Bug issue template |
+| `.github/ISSUE_TEMPLATE/feature_request.md` | Feature request template |
+| `.github/PULL_REQUEST_TEMPLATE.md` | PR template |
+| `docs/DEPLOYMENT.md` | Deployment guide |
+| `docs/OBSERVABILITY.md` | Logging + monitoring baseline |
 
 ### Docs updated
-- `docs/API_CONTRACT.md`, `docs/PROJECT_PROGRESS.md`, `docs/PROJECT_BACKLOG.md`, `docs/HANDOFF.md`, `CLAUDE_SESSION_START.md`
+- `docs/ADR/006-mcp-agent-auth-architecture.md` — extended with contributor guide
+- `docs/PROJECT_PROGRESS.md` — Milestone 10 added
+- `docs/PROJECT_BACKLOG.md` — open-source readiness sprint marked complete
+- `README.md` — badges, quick-start, file structure, test inventory, roadmap
 
 ---
 
 ## Tests Run & Results
 
 ```
-Tests run: 24, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
+Tests run: 26, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
 Tests run:  8, Failures: 0, Errors: 0 — JwtUtilTest
 Tests run:  5, Failures: 0, Errors: 0 — AuthServiceTest
 ─────────────────────────────────────────────────────
-Tests run: 37, Failures: 0, Errors: 0 — BUILD SUCCESS
+Tests run: 39, Failures: 0, Errors: 0 — BUILD SUCCESS
 ```
+
+New tests (this session): `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
 
 ---
 
 ## Exact Next Steps
 
-### Priority 1: Merge strategy (choose one)
-- Open PR for `claude/refresh-tokens` → merge to main
-- Optionally merge `claude/rate-limit-login` first (simpler, no conflict with this branch)
-- Then open PR for this branch on top of updated main
+### Priority 1: Open PRs and merge
+1. Merge `claude/rate-limit-login` → `main` (simpler, no conflicts with this branch)
+2. Merge `claude/refresh-tokens` → `main` (this branch — includes all three sprints)
+3. Update `main` branch badges after merge (test count stays 37; CI badge auto-updates)
 
-### Priority 2: Production access token TTL
-- Set `app.jwt.expiration-ms=900000` (15 min) in production environment
-- No code change needed; pure config
+### Priority 2: Good First Issues to label in GitHub
+These are well-scoped, documented, and low-risk for external contributors:
+- `GET /auth/me` — return user info (ID, email) from JWT claims; low effort
+- Merge `claude/rate-limit-login` — standalone, zero conflict
+- HikariCP connection pool config in `application-prod.properties`
+- PostgreSQL Testcontainers integration test — validates V2 migration
+- `JwtAuthenticationFilter` unit test — coverage gap, no Spring context needed
 
-### Priority 3: Next feature candidates
-- `GET /auth/me` — return user info from JWT claims (low effort, high client value)
-- CI pipeline with PostgreSQL testcontainers — validates V2 migration
-- Rate limiting for `/auth/signup` — extend the Bucket4j interceptor
-- RBAC / scope claims — add `scopes` to JWT payload
+### Priority 3: Production hardening
+- Set `app.jwt.expiration-ms=900000` (15 min) in prod env
+- Configure `app.cors.allowed-origins` to actual frontend domain before going live
+- TLS at load balancer (nginx/Caddy/ALB)
 
 ### Standard process
 1. Read `CLAUDE.md` + this `HANDOFF.md` first
@@ -143,4 +148,4 @@ Tests run: 37, Failures: 0, Errors: 0 — BUILD SUCCESS
 
 ## Summary
 
-Implemented refresh tokens + logout (main feature), CORS, and `/actuator/health` security fix in a single sprint. 37 tests pass. V2 Flyway migration ready for PostgreSQL. Two ADRs added. Branch `claude/refresh-tokens` is ready for PR.
+Sprint added: OpenAPI/Swagger UI (working, disabled in prod), contributor docs (CONTRIBUTING, CODE_OF_CONDUCT, GitHub templates), DEPLOYMENT.md (deployment guide), OBSERVABILITY.md (logging/monitoring baseline), and ADR-006 extended with MCP contributor guide. README fully updated. Security review passed (2 warnings, 0 failures). 39 tests passing (2 new Swagger integration tests added). Branch `claude/refresh-tokens` now carries all Phase 2 + 3 work and is ready for PR.

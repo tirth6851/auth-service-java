@@ -68,15 +68,34 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **ADR-005**: refresh token design rationale (hashed UUID, rotation, revocation)
 - **ADR-006**: MCP/agent-auth architecture note
 
+### Milestone 10 — Open-Source Readiness + Developer Experience (2026-06-19)
+**Branch**: `claude/refresh-tokens` (continuing same branch)
+- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; UI at `/swagger-ui.html`; disabled in prod
+- **`OpenApiConfig.java`**: `@OpenAPIDefinition` (title, description) + `@SecurityScheme` (bearerAuth / JWT)
+- **`AuthController`** fully annotated: `@Tag`, `@Operation`, `@ApiResponses` on all 4 endpoints
+- **All DTOs** annotated with `@Schema` (descriptions, examples): `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`, `ErrorResponse`
+- **`SecurityConfig`**: `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` added to `permitAll()`
+- **`application-prod.properties`**: `springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false`
+- **`CONTRIBUTING.md`**: branch naming, coding rules, test expectations, ADR process, security contact
+- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
+- **`.github/ISSUE_TEMPLATE/bug_report.md`** and **`feature_request.md`**: structured issue templates
+- **`.github/PULL_REQUEST_TEMPLATE.md`**: security checklist, docs-update checklist, breaking-change declaration
+- **`docs/DEPLOYMENT.md`**: environment variables table, profiles guide, Docker deployment, JAR deployment, cloud platform notes, production checklist, rollback guidance
+- **`docs/OBSERVABILITY.md`**: logging baseline, what/what-not to log, monitoring signals, future JSON logging setup, audit event table
+- **`docs/ADR/006`** extended: "Where to Start" guide for MCP contributors, suggested MCP tool names
+- **`README.md`**: updated badges (CI now configured), Swagger quick-start step, interactive docs link, accurate file-structure tree, accurate test inventory, updated roadmap (completed items marked ✅, priority table for next sprint)
+- **`AuthControllerIntegrationTest`**: added `openApiDocs_returns200_withoutAuth` and `swaggerUi_isReachable`
+- **39 tests — all passing** (was 37; +2 Swagger integration tests)
+
 ## Latest Metrics (2026-06-19)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 37 (0 failures) |
+| Test count | 39 (0 failures) |
 | Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `claude/refresh-tokens` (PR pending) |
-| Open PRs | 1 (refresh tokens sprint) |
-| Phase | 2 — Auth Hardening in progress |
+| Branch | `claude/refresh-tokens` |
+| Open PRs | 1 (refresh tokens + open-source readiness sprint) |
+| Phase | 3 — Open-source readiness complete |
 
 ## Recent PR History
 

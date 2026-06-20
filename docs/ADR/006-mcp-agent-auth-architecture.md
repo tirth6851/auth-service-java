@@ -50,4 +50,28 @@ The MCP server translates tool invocations to HTTP. It does not replicate the us
 
 ## Consequences
 
-No code changes. This ADR establishes architectural intent and constraints to guide future MCP integration work.
+No code changes in this sprint. This ADR establishes architectural intent and constraints to guide future MCP integration work.
+
+## Where to Start (for contributors)
+
+The REST auth service is the source of truth and does not change. A future MCP server is a **separate project** that wraps it:
+
+1. Create a new repository (e.g. `auth-mcp-server`) using the MCP SDK for your language
+2. Implement tool functions that call this service's HTTP endpoints
+3. The MCP server holds the token pair in session context and auto-refreshes before expiry
+4. No user table, no password hashing, no JWT signing in the MCP layer
+
+**Suggested first MCP tools:**
+
+| MCP tool name | HTTP call |
+|---------------|-----------|
+| `auth_login` | `POST /auth/login` |
+| `auth_refresh` | `POST /auth/refresh` |
+| `auth_logout` | `POST /auth/logout` |
+| `auth_validate` | Any protected endpoint; 401 = expired |
+
+See `docs/OBSERVABILITY.md` for what to monitor when agents are running concurrent sessions.
+
+## Relationship to README
+
+The README Roadmap section lists "MCP adapter layer" as a future Priority 3 item with a pointer here. Keep this ADR as the single source for MCP architecture decisions — do not duplicate the dual-mode diagram in multiple places.

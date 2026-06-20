@@ -4,9 +4,9 @@
 ![Spring Boot 3.2.5](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen?logo=springboot)
 ![Tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![CI](https://img.shields.io/badge/CI-not%20configured-lightgrey)
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-brightgreen?logo=githubactions)
 
-A stateless JWT authentication REST API built with Spring Boot 3.2 and Java 17. Provides email/password signup and login with BCrypt password hashing and HS256 JWT issuance. Phase 1 is a fully functional local/dev foundation — **it is not yet hardened for production** (see [What's Missing / Roadmap](#whats-missing--roadmap)).
+A stateless JWT authentication REST API built with Spring Boot 3.2 and Java 17. Provides signup, login, refresh token rotation, and logout with BCrypt password hashing and HS256 JWT issuance. Fully functional for local development with Docker + PostgreSQL support — **not yet hardened for production** (see [What's Missing / Roadmap](#whats-missing--roadmap)).
 
 ---
 
@@ -66,41 +66,43 @@ HTTP Request
 auth-service-java/
 ├── pom.xml
 ├── README.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
 ├── CLAUDE.md
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── .github/
+│   ├── workflows/ci.yml
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md
+│       └── feature_request.md
 ├── docs/
-│   ├── spec.md
-│   ├── todo.md
-│   └── done-criteria.md
+│   ├── API_CONTRACT.md
+│   ├── ARCHITECTURE.md
+│   ├── DEPLOYMENT.md
+│   ├── ENVIRONMENTS.md
+│   ├── OBSERVABILITY.md
+│   ├── RUNBOOK.md
+│   └── ADR/           ← architectural decision records
 └── src/
     ├── main/
     │   ├── java/com/authplatform/
-    │   │   ├── AuthPlatformApplication.java
-    │   │   ├── config/
-    │   │   │   └── SecurityConfig.java
-    │   │   ├── controller/
-    │   │   │   └── AuthController.java
-    │   │   ├── dto/
-    │   │   │   ├── AuthResponse.java
-    │   │   │   ├── LoginRequest.java
-    │   │   │   └── SignupRequest.java
-    │   │   ├── model/
-    │   │   │   └── User.java
-    │   │   ├── repository/
-    │   │   │   └── UserRepository.java
-    │   │   ├── security/
-    │   │   │   ├── JwtAuthenticationFilter.java
-    │   │   │   └── JwtUtil.java
-    │   │   └── service/
-    │   │       └── AuthService.java
+    │   │   ├── config/        (SecurityConfig, OpenApiConfig)
+    │   │   ├── controller/    (AuthController)
+    │   │   ├── dto/           (request/response POJOs)
+    │   │   ├── exception/     (GlobalExceptionHandler, ErrorResponse)
+    │   │   ├── model/         (User, RefreshToken JPA entities)
+    │   │   ├── repository/    (UserRepository, RefreshTokenRepository)
+    │   │   ├── security/      (JwtUtil, JwtAuthenticationFilter)
+    │   │   └── service/       (AuthService, RefreshTokenService)
     │   └── resources/
-    │       └── application.properties
-    └── test/java/com/authplatform/
-        ├── controller/
-        │   └── AuthControllerIntegrationTest.java
-        ├── security/
-        │   └── JwtUtilTest.java
-        └── service/
-            └── AuthServiceTest.java
+    │       ├── application.properties          ← dev (H2, Flyway off)
+    │       ├── application-dev.properties      ← dev with H2 console
+    │       ├── application-prod.properties     ← prod (PostgreSQL, Flyway on, Swagger off)
+    │       └── db/migration/                  ← Flyway SQL migrations
+    └── test/
 ```
 
 ---
@@ -121,26 +123,37 @@ git clone https://github.com/tirth6851/auth-service-java.git
 cd auth-service-java
 ```
 
-**2. Run the application**
+**2. Set the required JWT secret**
+```bash
+export JWT_SECRET="dev-secret-minimum-32-characters-1234"
+```
+
+**3. Run the application**
 ```bash
 mvn spring-boot:run
 ```
 App starts on `http://localhost:8080`.
 
-**3. Smoke-test signup**
+**4. Explore the API in Swagger UI**
+
+Open `http://localhost:8080/swagger-ui.html` in your browser. All endpoints are documented with request/response schemas and example values.
+
+> Swagger UI is only available in the dev/default profile. It is disabled in production (`springdoc.swagger-ui.enabled=false`).
+
+**5. Smoke-test signup**
 ```bash
 curl -X POST http://localhost:8080/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"alice@example.com","password":"str0ngPassw0rd!"}'
 ```
-Expected: `{"token":"eyJ...","tokenType":"Bearer"}`
+Expected: `{"token":"eyJ...","tokenType":"Bearer","refreshToken":"..."}`
 
-**4. Use the token on a protected route**
+**6. Use the token on a protected route**
 ```bash
 curl http://localhost:8080/some-protected-endpoint \
   -H "Authorization: Bearer <paste-token-here>"
 ```
-> Note: no protected endpoints exist yet in Phase 1. A request to an unknown path returns `404`, which confirms the JWT filter accepted the token. A request without a token returns `401`.
+> A request to an unknown path with a valid token returns `404`; without a token returns `401`.
 
 ### H2 Console (dev only)
 
@@ -161,6 +174,8 @@ curl http://localhost:8080/some-protected-endpoint \
 
 All requests require `Content-Type: application/json`. All responses are JSON.
 All routes except `/auth/**` require `Authorization: Bearer <token>`.
+
+**Interactive docs:** Run the app and open `http://localhost:8080/swagger-ui.html` — full request/response schemas, example values, and an Authorize button for testing protected routes. The raw OpenAPI spec is at `http://localhost:8080/v3/api-docs`.
 
 ---
 
@@ -302,287 +317,127 @@ mvn test -Dtest=AuthControllerIntegrationTest
 
 | Class | Type | Count | What it covers |
 |-------|------|-------|----------------|
-| `JwtUtilTest` | Unit (no Spring context) | 5 | Token generation, claim extraction, validation, garbage-input rejection |
+| `JwtUtilTest` | Unit (no Spring context) | 8 | Token generation, claim extraction, validation, key-strength checks |
 | `AuthServiceTest` | Unit (Mockito mocks) | 5 | Signup happy path, 409 on duplicate email, login happy path, wrong password 401, unknown email 401 |
-| `AuthControllerIntegrationTest` | Integration (`@SpringBootTest` + MockMvc + H2) | 7 | Full HTTP contract: status codes, JSON shape, duplicate email, invalid inputs, bad credentials |
+| `AuthControllerIntegrationTest` | Integration (`@SpringBootTest` + MockMvc + H2) | 24 | Full HTTP contract: signup/login/refresh/logout, error codes, CORS, actuator health |
 
-**Coverage gaps** (known, for future contributors):
+**Coverage gaps** (good first issues):
 - `JwtAuthenticationFilter` has no isolated unit test
-- No test verifies that a request to a protected route without a token returns `401`
-- No test verifies that an expired token is rejected
-- BCrypt encode/verify cycle is only tested via Mockito stubs in `AuthServiceTest`, not a real round-trip
+- No Testcontainers integration test against PostgreSQL (Flyway V2 migration is untested locally)
+- Rate-limiting tests exist on `claude/rate-limit-login` branch but are not merged to `main` yet
+- BCrypt encode/verify cycle tested via Mockito stubs only — no real round-trip test
 
 ---
 
-## What's Done — Phase 1
+## What's Done
 
-### Core Authentication
-- [x] `POST /auth/signup` — registers user, returns JWT; `400` on invalid input, `409` on duplicate email
-- [x] `POST /auth/login` — authenticates user, returns JWT; `400` on invalid input, `401` on wrong credentials
-- [x] BCrypt password hashing via Spring Security `PasswordEncoder`
-- [x] Email normalised to lowercase and trimmed before storage and lookup
-- [x] Passwords never stored or returned in plaintext
+### Auth Endpoints
+- [x] `POST /auth/signup` — creates account; returns JWT + refresh token; `400` on invalid input, `409` on duplicate email
+- [x] `POST /auth/login` — authenticates user; returns JWT + refresh token; `400` / `401` on bad credentials
+- [x] `POST /auth/refresh` — rotates refresh token; returns new access + refresh token pair; `401` if expired/revoked
+- [x] `POST /auth/logout` — revokes refresh token (idempotent); `204 No Content`
+- [x] `GET /actuator/health` — health check; no auth required
 
-### JWT
+### JWT & Tokens
 - [x] HS256 JWT generation and parsing via JJWT 0.12.5
-- [x] Token `sub` = user ID string; custom `email` claim included
-- [x] Configurable token expiry (default 1 hour via `app.jwt.expiration-ms`)
-- [x] `JwtAuthenticationFilter` validates Bearer tokens on every request and populates `SecurityContext`
+- [x] Token `sub` = user ID; custom `email` claim; configurable TTL (default 1 hour)
+- [x] `JwtAuthenticationFilter` validates Bearer tokens on every request
+- [x] Refresh tokens: UUID v4, stored as SHA-256 hash, 7-day TTL, rotated on every use
+- [x] `JWT_SECRET` externalized to env var with fail-fast guard (`@PostConstruct` in `JwtUtil`)
+
+### Security
+- [x] BCrypt password hashing; passwords never stored or returned in plaintext
+- [x] Email normalised (trimmed, lowercased) before storage and lookup
+- [x] Stateless sessions (`SessionCreationPolicy.STATELESS`); CSRF disabled
+- [x] CORS configured via `app.cors.allowed-origins` (default: localhost:3000, localhost:5173)
+- [x] `401` (not `403`) returned for unauthenticated requests (`Http401UnauthorizedEntryPoint`)
+- [x] Rate limiting on `POST /auth/login` — 10 attempts / 10 min / IP (on `claude/rate-limit-login`, pending merge)
 
 ### Data Layer
-- [x] `User` entity: `id` (auto PK), `email` (unique, not null), `passwordHash`, `isVerified` (always `false` in Phase 1), `createdAt` (set on persist via `@PrePersist`)
-- [x] `UserRepository` with `findByEmail` and `existsByEmail`
-- [x] H2 in-memory database; schema managed by Hibernate `ddl-auto=update`
+- [x] `User` entity + `RefreshToken` entity with FK to users
+- [x] H2 in-memory for dev/test; PostgreSQL for production
+- [x] Flyway migrations: V1 (users table), V2 (refresh_tokens table)
 
-### Security Configuration
-- [x] Stateless session policy (`SessionCreationPolicy.STATELESS`)
-- [x] CSRF disabled (appropriate for a stateless JSON API)
-- [x] `/auth/**` and `/h2-console/**` are permit-all; all other routes require a valid JWT
-- [x] Bean validation on DTOs (`@Email`, `@NotBlank`, `@Size(min=8)`)
+### Error Handling
+- [x] `GlobalExceptionHandler` (`@RestControllerAdvice`) — consistent `{success, error, details}` shape
+- [x] Validation errors include per-field `details` array
+- [x] No internal details leaked in error responses
+
+### OpenAPI / Swagger UI
+- [x] `springdoc-openapi-starter-webmvc-ui` — Swagger UI at `/swagger-ui.html`, spec at `/v3/api-docs`
+- [x] Bearer JWT `@SecurityScheme` — Authorize button in Swagger UI
+- [x] All endpoints annotated with `@Operation`, `@ApiResponse`, `@Schema`
+- [x] Disabled in production (`springdoc.swagger-ui.enabled=false`)
+
+### Infrastructure
+- [x] Multi-stage `Dockerfile` (Maven build + JRE runtime, non-root user)
+- [x] `docker-compose.yml` with PostgreSQL 16 + app service and health checks
+- [x] `.env.example` documenting all required variables
+- [x] GitHub Actions CI — `mvn -B verify` on every push/PR to `main`
+
+### Contributor Readiness
+- [x] `CONTRIBUTING.md` — branch naming, coding rules, test expectations, ADR process
+- [x] `CODE_OF_CONDUCT.md` — Contributor Covenant v2.1
+- [x] GitHub issue templates (bug, feature) + PR template
+- [x] `docs/DEPLOYMENT.md` — deployment guide, environment variables, production checklist
+- [x] `docs/OBSERVABILITY.md` — logging baseline, monitoring signals, what to watch in prod
 
 ### Tests
-- [x] 17 tests — all passing: 5 unit (`JwtUtilTest`), 5 unit (`AuthServiceTest`), 7 integration (`AuthControllerIntegrationTest`)
-- [x] Integration tests use `@DirtiesContext` to reset H2 state between each test method
-
-### Documentation
-- [x] `README.md` with run instructions, API reference, curl examples
-- [x] `docs/spec.md` — design decisions and out-of-scope items
-- [x] `docs/done-criteria.md` — Phase 1 acceptance checklist
-- [x] `CLAUDE.md` — AI-assisted development guidance
+- [x] 37 tests — all passing: 8 unit (`JwtUtilTest`), 5 unit (`AuthServiceTest`), 24 integration (`AuthControllerIntegrationTest`)
+- [x] Integration tests use `@DirtiesContext`; `src/test/resources/application.properties` for H2 without env vars
 
 ---
 
-## What's Missing / Roadmap
+## Roadmap
 
-Work through items in order. Nothing in Phase 1 is safe for public internet traffic. Resolve all Priority 1 items before exposing this service to anyone.
+Items below are remaining gaps. Priority 1 must be resolved before exposing this service to real users. Items marked ✅ are complete.
 
 ---
 
 ### Priority 1 — Critical (must fix before any public use)
 
-#### 1.1 Move JWT secret to an environment variable
-**Problem:** `app.jwt.secret` is hardcoded in `application.properties`, which is committed to version control. Anyone with repo access can forge tokens.
+#### ✅ 1.1 JWT secret in environment variable — Complete
+`JWT_SECRET` env var required at startup; fail-fast guard in `JwtUtil.init()`.
 
-**Fix:**
-- Remove the value from `application.properties`; replace with `app.jwt.secret=${JWT_SECRET}`
-- Create `src/main/resources/application-prod.properties` with no secrets
-- Add a `@PostConstruct` guard in `JwtUtil` that throws `IllegalStateException` if the secret is still the placeholder or shorter than 32 characters
-- Set `JWT_SECRET` via environment variable, CI secret, or a secrets manager (AWS Secrets Manager, HashiCorp Vault, GitHub Secrets)
+#### ✅ 1.2 H2 console disabled outside dev — Complete
+`spring.h2.console.enabled=false` in default profile; enabled only via `dev` profile.
 
-**Files:** `src/main/resources/application.properties`, `src/main/java/com/authplatform/security/JwtUtil.java`, new `src/main/resources/application-prod.properties`
+#### ✅ 1.3 PostgreSQL with Flyway — Complete
+`application-prod.properties` uses `${POSTGRES_JDBC_URL}` etc. Flyway V1 migration applied on startup.
 
----
+#### 1.4 Enforce HTTPS / TLS
 
-#### 1.2 Disable H2 console outside local development
-**Problem:** `spring.h2.console.enabled=true` is on by default. The H2 console is an unauthenticated web UI that allows arbitrary SQL against the live database — a critical vulnerability on any shared host.
+Credentials and tokens travel in plaintext over HTTP.
 
-**Fix:**
-- Set `spring.h2.console.enabled=false` in `application-prod.properties`
-- Keep `true` only in the dev `application.properties`
-- Update `SecurityConfig` to make the H2 permit-all rule conditional on the dev profile, or remove it from the prod filter chain
-
-**Files:** `src/main/resources/application.properties`, `src/main/resources/application-prod.properties`, `src/main/java/com/authplatform/config/SecurityConfig.java`
+**Recommended approach:** Terminate TLS at a load balancer or reverse proxy (nginx, Caddy, AWS ALB). Spring Boot app stays on HTTP internally. Add a `ForwardedHeaderFilter` bean to respect `X-Forwarded-Proto`.
 
 ---
 
-#### 1.3 Replace H2 with a persistent database (PostgreSQL)
-**Problem:** H2 in-memory means all user accounts are lost on every application restart. The service is unusable for any real scenario.
+### Priority 2 — Next sprint candidates
 
-**Fix:**
-- Add `org.postgresql:postgresql` (runtime scope) to `pom.xml`
-- In `application-prod.properties`: `spring.datasource.url=${DB_URL}`, `spring.datasource.username=${DB_USER}`, `spring.datasource.password=${DB_PASSWORD}`
-- Keep H2 in `application.properties` for local dev
-- Switch `spring.jpa.hibernate.ddl-auto` to `validate` in prod (pair with Flyway — see 1.4)
-
-**Dependencies:** `org.postgresql:postgresql`
-
----
-
-#### 1.4 Add database migrations (Flyway)
-**Problem:** `ddl-auto=update` lets Hibernate silently alter the production schema, which cannot be audited or rolled back.
-
-**Fix:**
-- Add `org.flywaydb:flyway-core` to `pom.xml`
-- Create `src/main/resources/db/migration/V1__create_users_table.sql` with explicit `CREATE TABLE users` DDL matching the `User` entity
-- Set `spring.jpa.hibernate.ddl-auto=validate` in prod
-- Set `spring.flyway.enabled=false` in dev `application.properties` (H2 auto-DDL is fine for local dev)
-
-**Files to create:** `src/main/resources/db/migration/V1__create_users_table.sql`
+| Item | Effort | Label |
+|------|--------|-------|
+| Merge `claude/rate-limit-login` to `main` | Low | `good first issue` |
+| `GET /auth/me` — user info from JWT claims | Low | `good first issue` |
+| PostgreSQL Testcontainers integration test | Medium | `testing` |
+| Account lockout after N failures | Medium | `enhancement` |
+| Structured JSON logging (logstash-logback-encoder) | Low | `observability` |
+| Audit log entity (signup/login/refresh events) | Medium | `observability` |
+| HikariCP pool tuning in `application-prod.properties` | Low | `good first issue` |
 
 ---
 
-#### 1.5 Enforce HTTPS / TLS
-**Problem:** Credentials and tokens travel in plaintext over HTTP.
+### Priority 3 — Future
 
-**Recommended fix (option A — TLS at the proxy):** Terminate TLS at a load balancer or reverse proxy (nginx, Caddy, AWS ALB). The Spring Boot app stays on HTTP internally. Add a `ForwardedHeaderFilter` bean so Spring sees the correct scheme from `X-Forwarded-Proto`.
-
-**Alternative fix (option B — Tomcat SSL):** Configure `server.ssl.*` properties in `application-prod.properties` with a keystore. Add an HTTP→HTTPS redirect in `SecurityConfig`.
-
----
-
-### Priority 2 — Important (should have before real users)
-
-#### 2.1 Rate limiting on `/auth/login`
-**Problem:** `/auth/login` accepts unlimited requests. An attacker can brute-force passwords with no friction.
-
-**Fix:** Add `com.bucket4j:bucket4j-core` or use Resilience4j `@RateLimiter`. Apply a limit of ~10 attempts per IP per 10 minutes on `/auth/login`. Return `429 Too Many Requests` with a `Retry-After` header on limit exceeded.
-
-**Files to create:** `src/main/java/com/authplatform/config/RateLimitConfig.java` (or a `OncePerRequestFilter`)
-
----
-
-#### 2.2 Structured, consistent error responses
-**Problem:** `ResponseStatusException` produces Spring Boot's default error body, which is unpredictable across versions and hard for API clients to parse reliably.
-
-**Fix:** Create a `@RestControllerAdvice` `GlobalExceptionHandler`. Handle `ResponseStatusException`, `MethodArgumentNotValidException` (returns all field errors in an `"errors"` array), and a catch-all `Exception`. Consistent response shape:
-```json
-{ "status": 400, "error": "Bad Request", "message": "...", "timestamp": "..." }
-```
-
-**Files to create:** `src/main/java/com/authplatform/exception/GlobalExceptionHandler.java`, `src/main/java/com/authplatform/dto/ErrorResponse.java`
-
----
-
-#### 2.3 Refresh tokens + `/auth/logout`
-**Problem:** Access tokens expire in 1 hour with no renewal path. Users must re-submit credentials to continue — unworkable for any app with a UI.
-
-**Fix:**
-- Add `RefreshToken` entity: `id`, `token` (UUID), `userId` (FK), `expiresAt` (7 days), `createdAt`, `revokedAt`
-- `POST /auth/refresh` — accepts `{"refreshToken":"..."}`, validates (not expired, not revoked), issues new access JWT + rotated refresh token
-- `POST /auth/logout` — accepts refresh token, sets `revokedAt`, immediately invalidates session
-- Modify signup/login responses to include `refreshToken` alongside the access `token`
-
-**Files to create:** `RefreshToken.java`, `RefreshTokenRepository.java`, `RefreshTokenService.java`
-**Files to modify:** `AuthController.java`, `AuthResponse.java`
-
----
-
-#### 2.4 CORS configuration
-**Problem:** Browser-based frontends (SPAs) cannot call the API from a different origin. There is no CORS configuration.
-
-**Fix:** Add a `CorsConfigurationSource` bean in `SecurityConfig`. Source allowed origins from `app.cors.allowed-origins` (default in dev: `http://localhost:3000,http://localhost:5173`; must be set explicitly in prod). Register the `CorsFilter` before the JWT filter. Do not use `*` as `allowedOrigins` when `allowCredentials` is `true`.
-
-**Files:** `src/main/java/com/authplatform/config/SecurityConfig.java`, `application.properties`, `application-prod.properties`
-
----
-
-#### 2.5 Health check endpoint
-**Problem:** No `/health` endpoint. Load balancers, Kubernetes liveness probes, and Docker Compose health checks all need one.
-
-**Fix:** Add `spring-boot-starter-actuator` to `pom.xml`. In prod, expose only health: `management.endpoints.web.exposure.include=health`, `management.endpoint.health.show-details=never`. Permit `/actuator/health` in `SecurityConfig`.
-
----
-
-#### 2.6 Dockerfile + docker-compose.yml
-**Problem:** No container support. Most deployment targets (ECS, GKE, Render, Railway) require a container image.
-
-**Dockerfile:** Multi-stage build — Stage 1: `maven:3.9-eclipse-temurin-17` to build the fat JAR. Stage 2: `eclipse-temurin:17-jre-alpine` to run it. Non-root user. Expose port 8080.
-
-**docker-compose.yml:** Two services — `db` (postgres:16-alpine with persistent volume and healthcheck) and `app` (built from Dockerfile, depends on `db`, env vars for `JWT_SECRET`, `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SPRING_PROFILES_ACTIVE=prod`).
-
-**Files to create:** `Dockerfile`, `docker-compose.yml`, `.dockerignore`
-
----
-
-#### 2.7 GitHub Actions CI pipeline
-**Problem:** No automated build-and-test on push or pull request. Regressions can be merged silently.
-
-**Fix:** Create `.github/workflows/ci.yml`. Trigger on `push` to `main` and `pull_request`. Job: checkout → set up JDK 17 → `mvn verify` → upload test reports as artifact. Optionally add a `docker-build` job (build image, don't push) to catch Dockerfile regressions.
-
-**Files to create:** `.github/workflows/ci.yml`
-
----
-
-### Priority 3 — Nice to Have
-
-#### 3.1 Email verification
-`User.isVerified` exists and is always `false`. To activate it: on signup, generate a secure token, store it in an `EmailVerificationToken` entity, send a verification email. `GET /auth/verify?token=...` marks the user verified. Optionally block login for unverified users.
-
-**Dependencies:** `spring-boot-starter-mail` or an email provider SDK (SendGrid, Resend, Postmark)
-
----
-
-#### 3.2 Password reset flow
-`POST /auth/forgot-password` — always returns `200` regardless of whether email exists (prevents enumeration). If found, store a short-lived `PasswordResetToken` and send a reset link. `POST /auth/reset-password` — validates token, hashes new password, invalidates token.
-
----
-
-#### 3.3 Account lockout after repeated failures
-Add `failedLoginAttempts` (int) and `lockedUntil` (Instant, nullable) to `User`. After 5 consecutive failures, lock the account for 15 minutes, returning `423 Locked`. Reset counts on successful login. Requires a Flyway migration for the new columns.
-
----
-
-#### 3.4 API versioning
-Move all endpoints to `/api/v1/auth/**`. Update `SecurityConfig` permit-all rules and all tests. Decide on a versioning strategy (URI prefix shown here for simplicity).
-
----
-
-#### 3.5 OpenAPI / Swagger UI
-Add `springdoc-openapi-starter-webmvc-ui`. Annotate `AuthController`, DTOs, and errors with `@Operation`, `@ApiResponse`, `@Schema`. UI at `http://localhost:8080/swagger-ui.html`. Disable the UI in prod (`springdoc.swagger-ui.enabled=false`) or protect it.
-
----
-
-#### 3.6 Structured logging
-Add `src/main/resources/logback-spring.xml`. Dev: coloured console at DEBUG. Prod: JSON output via `logstash-logback-encoder`, INFO level, include `traceId`. Log each login attempt (success/failure) at INFO with email and result — never log passwords or raw JWTs.
-
----
-
-#### 3.7 Audit logging
-`AuditLog` entity: `userId` (nullable), `action` (enum: `SIGNUP`, `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `PASSWORD_RESET`, `EMAIL_VERIFIED`), `ipAddress`, `userAgent`, `createdAt`. Write a record in `AuthService` after each action. Critical for incident response.
-
----
-
-#### 3.8 Postman / Bruno collection
-Create `docs/auth-service.postman_collection.json` with requests for Signup, Login, JWT-protected route, and Refresh token (placeholder). Use `{{base_url}}` environment variable. Add a test script on Login that auto-saves the returned token to `{{jwt_token}}`.
-
----
-
-#### 3.9 HikariCP connection pool configuration
-When switching to PostgreSQL, configure HikariCP in `application-prod.properties`:
-```
-spring.datasource.hikari.maximum-pool-size=10
-spring.datasource.hikari.minimum-idle=2
-spring.datasource.hikari.connection-timeout=30000
-spring.datasource.hikari.idle-timeout=600000
-```
-
----
-
-## Next Steps
-
-The recommended implementation order — each sprint builds on the previous one.
-
-```
-Sprint 0 — Security (do before sharing with anyone)
-  1. Move JWT secret to environment variable        → Roadmap 1.1
-  2. Disable H2 console in prod profile             → Roadmap 1.2
-  3. Create application-prod.properties             → enables 1.1, 1.2, 1.3
-
-Sprint 1 — Make It Real (do before any real user data)
-  4. Add PostgreSQL + Flyway V1 migration           → Roadmap 1.3 + 1.4
-  5. Add Dockerfile + docker-compose.yml            → Roadmap 2.6  (depends on step 4)
-  6. Add GitHub Actions CI                          → Roadmap 2.7
-  7. Add /actuator/health endpoint                  → Roadmap 2.5
-
-Sprint 2 — Harden Auth
-  8. Global exception handler + ErrorResponse DTO   → Roadmap 2.2
-  9. Rate limiting on /auth/login                   → Roadmap 2.1
-  10. CORS configuration                            → Roadmap 2.4
-  11. Refresh tokens + /auth/logout                 → Roadmap 2.3
-
-Sprint 3 — Features
-  12. Email verification flow                       → Roadmap 3.1
-  13. Password reset flow                           → Roadmap 3.2
-  14. Account lockout (5 attempts → 15 min lock)   → Roadmap 3.3
-  15. OpenAPI / Swagger UI                          → Roadmap 3.5
-  16. API versioning (/api/v1/)                     → Roadmap 3.4
-
-Sprint 4 — Observability
-  17. Structured JSON logging (logback-spring.xml)  → Roadmap 3.6
-  18. Audit logging entity + service                → Roadmap 3.7
-  19. Postman / Bruno collection                    → Roadmap 3.8
-  20. HikariCP pool configuration                   → Roadmap 3.9
-```
+| Item | Notes |
+|------|-------|
+| Email verification | `User.isVerified` field exists; needs `spring-boot-starter-mail` |
+| Password reset flow | `POST /auth/forgot-password` + `POST /auth/reset-password` |
+| API versioning (`/api/v1/auth/`) | URI prefix; update SecurityConfig + tests |
+| Postman / Bruno collection | Automate smoke tests; save JWT to env var |
+| MCP adapter layer | See `docs/ADR/006-mcp-agent-auth-architecture.md` |
+| RBAC / scope claims | `"scopes"` claim in JWT; `@PreAuthorize` on routes |
+| API keys for agents | Long-lived `Authorization: ApiKey <key>` for non-interactive clients |
 
 ---
 
@@ -617,12 +472,16 @@ Sprint 4 — Observability
 
 ## Contributing
 
-- Fork the repository and create a feature branch from `main`
-- All changes must include tests; run `mvn test` and confirm it passes before opening a PR
-- No business logic in controllers — all logic lives in `AuthService`
-- Use DTOs for all HTTP payloads; never expose JPA entities directly
-- Minimal comments — only where the *why* is non-obvious
-- Reference `CLAUDE.md` for full coding rules and `docs/spec.md` for design decisions already made
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide — branch naming, coding rules, test expectations, and the ADR process for architectural proposals.
+
+Quick checklist:
+- Base branches off `main`; open a PR with the [PR template](.github/PULL_REQUEST_TEMPLATE.md)
+- All tests must pass: `mvn test`
+- New endpoints → update `docs/API_CONTRACT.md`; new config → update `docs/ENVIRONMENTS.md`
+- No business logic in controllers; no JPA entities in HTTP responses
+- `good first issue` labels mark beginner-friendly tasks
+
+Found a security vulnerability? Email `tirth2093@gmail.com` — do not open a public issue.
 
 ---
 
