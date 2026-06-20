@@ -2,13 +2,18 @@
 
 ## Overview
 
-Auth Platform exposes two stateless HTTP endpoints for user signup and login. Both return JWT tokens. No authentication is required for these endpoints.
+Auth Platform exposes stateless HTTP endpoints for user authentication. All requests require `Content-Type: application/json`. All responses are JSON.
+
+**Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`  
+**Protected endpoints** (require `Authorization: Bearer <token>`): all others
+
+---
 
 ## Endpoints
 
 ### POST /auth/signup
 
-Register a new user and receive a JWT token.
+Register a new user and receive a token pair.
 
 **Request:**
 ```json
@@ -18,40 +23,28 @@ Register a new user and receive a JWT token.
 }
 ```
 
-**Headers:**
-```
-Content-Type: application/json
-```
-
-**Query Parameters:** None
-
-**Auth:** Not required
-
 **Validation:**
-- `email`: required, must be valid email format, must be unique (not already registered)
+- `email`: required, valid email format, must be unique
 - `password`: required, minimum 6 characters
 
 **Response (200 OK):**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresAt": 1718821200,
-  "email": "user@example.com"
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 **Errors:**
 
-| Status | Error Code | Message | Cause |
-|--------|-----------|---------|-------|
-| 400 | Bad Request | Email is required | Missing email field |
-| 400 | Bad Request | Invalid email format | Email doesn't match pattern |
-| 400 | Bad Request | Password is required | Missing password field |
-| 400 | Bad Request | Password must be at least 6 characters | Password too short |
-| 409 | Conflict | Email already registered | Email exists in database |
-| 500 | Internal Server Error | An unexpected error occurred | Server-side exception |
+| Status | Message | Cause |
+|--------|---------|-------|
+| 400 | Validation failed | Missing/invalid field |
+| 409 | Email already registered | Email exists in database |
+| 500 | An unexpected error occurred | Server error |
 
-**Example curl:**
+**Example:**
 ```bash
 curl -X POST http://localhost:8080/auth/signup \
   -H "Content-Type: application/json" \
@@ -62,7 +55,7 @@ curl -X POST http://localhost:8080/auth/signup \
 
 ### POST /auth/login
 
-Authenticate a user with email and password, receive a JWT token.
+Authenticate an existing user and receive a token pair.
 
 **Request:**
 ```json
@@ -72,39 +65,28 @@ Authenticate a user with email and password, receive a JWT token.
 }
 ```
 
-**Headers:**
-```
-Content-Type: application/json
-```
-
-**Query Parameters:** None
-
-**Auth:** Not required
-
 **Validation:**
-- `email`: required, must be valid email format
+- `email`: required, valid email format
 - `password`: required, non-empty
 
 **Response (200 OK):**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresAt": 1718821200,
-  "email": "user@example.com"
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 **Errors:**
 
-| Status | Error Code | Message | Cause |
-|--------|-----------|---------|-------|
-| 400 | Bad Request | Email is required | Missing email field |
-| 400 | Bad Request | Invalid email format | Email doesn't match pattern |
-| 400 | Bad Request | Password is required | Missing password field |
-| 401 | Unauthorized | Invalid email or password | Email not found or password mismatch |
-| 500 | Internal Server Error | An unexpected error occurred | Server-side exception |
+| Status | Message | Cause |
+|--------|---------|-------|
+| 400 | Validation failed | Missing/invalid field |
+| 401 | Invalid credentials | Email not found or wrong password (non-enumerating) |
+| 500 | An unexpected error occurred | Server error |
 
-**Example curl:**
+**Example:**
 ```bash
 curl -X POST http://localhost:8080/auth/login \
   -H "Content-Type: application/json" \
@@ -113,151 +95,226 @@ curl -X POST http://localhost:8080/auth/login \
 
 ---
 
+### POST /auth/refresh
+
+Exchange a valid refresh token for a new token pair (rotates the refresh token).
+
+**Auth:** Not required (refresh token is the credential)
+
+**Request:**
+```json
+{
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Validation:**
+- `refreshToken`: required, non-blank
+
+**Response (200 OK):**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "tokenType": "Bearer",
+  "refreshToken": "new-uuid-here"
+}
+```
+
+The submitted refresh token is immediately revoked; the response contains a new pair. Do not reuse the old refresh token.
+
+**Errors:**
+
+| Status | Message | Cause |
+|--------|---------|-------|
+| 400 | Validation failed | Missing refreshToken field |
+| 401 | Invalid credentials | Token not found, already revoked, or expired |
+| 500 | An unexpected error occurred | Server error |
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"550e8400-e29b-41d4-a716-446655440000"}'
+```
+
+---
+
+### POST /auth/logout
+
+Revoke a refresh token, ending the session.
+
+**Auth:** Not required (refresh token is the credential)
+
+**Request:**
+```json
+{
+  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**Response (204 No Content):** Success — refresh token revoked.
+
+The active JWT access token is NOT revoked (it expires naturally per `app.jwt.expiration-ms`, default 1 hour). Clients should discard the access token on logout.
+
+**Errors:**
+
+| Status | Message | Cause |
+|--------|---------|-------|
+| 400 | Validation failed | Missing refreshToken field |
+| 401 | Invalid credentials | Token not found in database |
+| 500 | An unexpected error occurred | Server error |
+
+**Note:** Logout with an already-revoked token returns 204 (idempotent — the session was already ended).
+
+**Example:**
+```bash
+curl -X POST http://localhost:8080/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"550e8400-e29b-41d4-a716-446655440000"}'
+```
+
+---
+
 ### GET /actuator/health
 
 Health check endpoint for load balancers, monitoring, and orchestration systems.
-
-**Request:**
-```
-GET /actuator/health
-```
-
-**Headers:**
-```
-Accept: application/json
-```
-
-**Query Parameters:** None
 
 **Auth:** Not required
 
 **Response (200 OK):**
 ```json
 {
-  "status": "UP",
-  "components": {
-    "db": {
-      "status": "UP",
-      "details": {...}
-    }
-  }
+  "status": "UP"
 }
 ```
 
+Full component details (DB status, etc.) are shown only to authenticated requests (`management.endpoint.health.show-details=when-authorized`).
+
 **Response (503 Service Unavailable):** If database or other critical components are down.
 
-**Example curl:**
+**Example:**
 ```bash
 curl http://localhost:8080/actuator/health
 ```
 
-**Use case:** Docker health checks, Kubernetes liveness probes, load balancer health checks.
+**Use cases:** Docker `HEALTHCHECK`, Kubernetes liveness probes, load balancer health checks.
 
 ---
 
-## JWT Token Format
+## JWT Access Token Format
 
-**Type:** Bearer token (include in `Authorization` header for protected endpoints)
+**Type:** Bearer token — include in `Authorization` header for protected endpoints
 
 **Algorithm:** HS256 (HMAC SHA-256)
-
-**Header:**
-```json
-{
-  "alg": "HS256",
-  "typ": "JWT"
-}
-```
 
 **Payload:**
 ```json
 {
-  "sub": "42",                    // user ID (subject claim)
-  "email": "user@example.com",    // custom email claim
-  "iat": 1718817600,              // issued at (seconds since epoch)
-  "exp": 1718821200               // expires at (seconds since epoch)
+  "sub": "42",
+  "email": "user@example.com",
+  "iat": 1750000000,
+  "exp": 1750003600
 }
 ```
 
-**Example Authorization header:**
+- `sub`: user ID (string)
+- `email`: custom claim
+- `iat` / `exp`: Unix timestamps (seconds)
+- Default TTL: 1 hour (`app.jwt.expiration-ms=3600000`)
+
+**Authorization header:**
 ```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MiIsImVtYWlsIjoidXNlckBleGFtcGxlLmNvbSIsImlhdCI6MTcxODgxNzYwMCwiZXhwIjoxNzE4ODIxMjAwfQ.SIGNATURE
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 ```
+
+---
+
+## Refresh Token
+
+An opaque UUID v4. Stored as a SHA-256 hash in the database. TTL: 7 days (`app.refresh-token.ttl-ms=604800000`).
+
+- Rotate on every `/auth/refresh` call — always use the latest token
+- Revoked on `/auth/logout`
+- Revoked tokens cannot be used again (returns 401)
 
 ---
 
 ## Error Response Format
 
-All errors return a standardized JSON error object:
+All errors return a standardized JSON object:
 
 ```json
 {
-  "error": "Conflict",
-  "message": "Email already registered",
-  "timestamp": "2024-06-19T12:34:56Z",
-  "path": "/auth/signup"
+  "success": false,
+  "error": "Human-readable error message"
+}
+```
+
+Validation errors include a `details` array:
+
+```json
+{
+  "success": false,
+  "error": "Validation failed",
+  "details": [
+    "email: must be a well-formed email address",
+    "password: size must be between 6 and 2147483647"
+  ]
 }
 ```
 
 **Fields:**
-- `error`: HTTP status text (e.g., "Bad Request", "Unauthorized", "Conflict")
-- `message`: Human-readable error description
-- `timestamp`: ISO 8601 timestamp of error
-- `path`: Request path that caused error
+- `success`: always `false` for error responses
+- `error`: short error message (safe to display to end users)
+- `details`: array of field-level messages (validation errors only, omitted otherwise)
 
 ---
 
 ## Authentication for Protected Routes
 
-For future endpoints that require authentication, include JWT token in header:
-
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <access-token>
 ```
 
-**Valid token:** Request proceeds, user info available in SecurityContext
-
-**Invalid/expired token:** Returns 401 Unauthorized
-```json
-{
-  "error": "Unauthorized",
-  "message": "Invalid or expired token",
-  "timestamp": "2024-06-19T12:34:56Z",
-  "path": "/protected/endpoint"
-}
-```
-
-**Missing header:** Returns 401 Unauthorized
-
----
-
-## Rate Limiting
-
-None in Phase 1.
-
----
-
-## Versioning
-
-API is at v1 (implicit). Future versions may use path prefix `/api/v2/auth/...` or header-based versioning.
-
----
-
-## Data Types
-
-- `string`: JSON string (quoted)
-- `integer`: JSON number (unquoted integer)
-- `timestamp`: Unix timestamp in seconds (integer)
-
----
-
-## Content Negotiation
-
-- **Request**: JSON only (`Content-Type: application/json`)
-- **Response**: JSON only (`Content-Type: application/json`)
+| Condition | Response |
+|-----------|----------|
+| Valid token | 200 (or endpoint's normal response) |
+| Missing header | 401 `{"success":false,"error":"Unauthorized"}` |
+| Invalid / expired token | 401 `{"success":false,"error":"Unauthorized"}` |
 
 ---
 
 ## CORS
 
-None configured in Phase 1. Add `spring-boot-starter-web` + `WebMvcConfigurer` if needed.
+Configured via `app.cors.allowed-origins` (comma-separated list).
+
+**Defaults:**
+- Allowed origins: `http://localhost:3000`, `http://localhost:5173`
+- Allowed methods: `GET, POST, PUT, DELETE, OPTIONS`
+- Allowed headers: `Authorization, Content-Type`
+- Credentials: allowed
+
+Override per environment:
+```properties
+# application-prod.properties
+app.cors.allowed-origins=https://your-frontend-domain.com
+```
+
+---
+
+## Rate Limiting
+
+`POST /auth/login` — 10 attempts per 10 minutes per IP address. Returns 429 Too Many Requests with a `Retry-After` header when exceeded. (Implemented on the `claude/rate-limit-login` branch, pending merge.)
+
+---
+
+## Content Negotiation
+
+- **Request**: `Content-Type: application/json`
+- **Response**: `Content-Type: application/json`
+
+---
+
+## Versioning
+
+API is at v1 (implicit). Future versions may use path prefix `/api/v2/auth/...`.

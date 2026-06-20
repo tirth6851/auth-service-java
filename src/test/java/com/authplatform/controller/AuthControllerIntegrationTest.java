@@ -1,5 +1,6 @@
 package com.authplatform.controller;
 
+import com.authplatform.repository.RefreshTokenRepository;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
+
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -19,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuthControllerIntegrationTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired RefreshTokenRepository refreshTokenRepository;
+
+    // --- Signup / Login ---
 
     @Test
     void signup_returns200AndToken() throws Exception {
@@ -109,6 +116,8 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    // --- Protected routes ---
+
     @Test
     void protectedRoute_returns401_whenNoToken() throws Exception {
         mockMvc.perform(get("/api/protected"))
@@ -132,7 +141,6 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        // Extract token from the signup response JSON
         String token = JsonPath.read(signupResponse, "$.token");
 
         // A valid token passes authentication; /api/protected doesn't exist so Spring returns 404,
@@ -155,7 +163,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
     }
 
-    // --- Error response shape tests ---
+    // --- Error response shape ---
 
     @Test
     void errorShape_validationFailure_hasDetailsArray() throws Exception {
@@ -207,5 +215,171 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error").value("Unauthorized"))
                 .andExpect(jsonPath("$.details").doesNotExist());
+    }
+
+    // --- Refresh tokens ---
+
+    @Test
+    void signup_returnsRefreshToken() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"rt1@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void login_returnsRefreshToken() throws Exception {
+        String body = """
+            {"email":"rt2@example.com","password":"pass1234"}
+            """;
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void refresh_returnsNewTokenPair_whenValid() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"rt3@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void refresh_returns401_whenExpired() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"rt4@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        // Expire all refresh tokens directly in the DB — avoids Thread.sleep
+        refreshTokenRepository.findAll().forEach(rt -> {
+            rt.setExpiresAt(Instant.now().minusSeconds(3600));
+            refreshTokenRepository.save(rt);
+        });
+
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refresh_returns401_whenRevoked() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"rt5@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void refresh_returns401_whenInvalidToken() throws Exception {
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"refreshToken":"not-a-real-refresh-token"}
+                    """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // --- Logout ---
+
+    @Test
+    void logout_returns204_whenValid() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"rt7@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void logout_returns401_whenInvalidToken() throws Exception {
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"refreshToken":"not-a-real-refresh-token"}
+                    """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // --- Actuator health ---
+
+    @Test
+    void actuatorHealth_returns200_withoutAuth() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    // --- OpenAPI / Swagger ---
+
+    @Test
+    void openApiDocs_returns200_withoutAuth() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().string(containsString("/auth/signup")));
+    }
+
+    @Test
+    void swaggerUi_isReachable() throws Exception {
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
+    }
+
+    // --- CORS ---
+
+    @Test
+    void cors_allowedOriginReceivesCorsHeaders() throws Exception {
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"cors@example.com","password":"pass1234"}
+                    """)
+                .header("Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
     }
 }

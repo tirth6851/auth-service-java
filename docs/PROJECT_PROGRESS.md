@@ -38,7 +38,7 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - JwtUtil validation tests strengthened (min key length, blank secret)
 - Integration test `protectedRoute_isDenied_whenNoToken` and `_whenInvalidToken` added
 
-### Milestone 5 — 401 Fix (PR #6) — **Latest**
+### Milestone 5 — 401 Fix (PR #6)
 **Commit:** `8140b4e fix: return 401 instead of 403 for unauthenticated requests`
 **Merged:** 2026-06-14
 - **Root cause fixed:** Spring Security 6 defaulted to `Http403ForbiddenEntryPoint`; unauthenticated requests incorrectly returned 403.
@@ -48,33 +48,72 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **Test infrastructure:** `src/test/resources/application.properties` created so integration tests run without `JWT_SECRET` env var.
 - Total tests: **23** (was 17 before Milestone 4 expansions + this PR added 3 net new).
 
-### Milestone 6 — Security Hardening Round 2 (2026-06-19)
-**Commits**: pending push to CI
+### Milestone 6–8 — Docker, PostgreSQL, Actuator (Sessions since M5)
+- Multi-stage Dockerfile + docker-compose.yml with PostgreSQL 16
+- Flyway V1 migration (`V1__create_users_table.sql`, LOWER(email) index)
+- `/actuator/health` endpoint enabled; `.env.example` + `.dockerignore` added
+- PostgreSQL datasource, `application-prod.properties`, H2 for dev/test unchanged
+
+### Milestone 9 — Security Hardening Round 2 (PR #9, merged 2026-06-19)
+**Branch**: `claude/security-hardening-round2`
 - `Dockerfile` — non-root `spring` user in runtime stage (least-privilege)
 - `SecurityConfig` — `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
 - `AuthControllerIntegrationTest` — added `responses_includeXFrameOptionsSameOrigin()` test
 - `docker-compose.yml` — removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
 - `.env.example` — demo JWT_SECRET replaced with JwtUtil-rejected placeholder (closes onboarding-path gap)
 - `.github/workflows/ci.yml` — `upload-artifact@v3` → `@v4` (action deprecation fix)
-- `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET` (doc contradiction)
+- `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET`
 - `docs/RUNBOOK.md`, `docs/ARCHITECTURE.md` — updated to match changes
 
-Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior session; prior HANDOFF was stale on this point.
+### Milestone 10 — Refresh Tokens, Logout, CORS, Actuator Security (2026-06-19)
+**Branch**: `claude/refresh-tokens`
+- **Refresh tokens**: UUID v4 stored as SHA-256 hash; 7-day TTL; rotation on every refresh
+- **`POST /auth/refresh`**: validates token (not expired, not revoked), revokes old, issues new pair
+- **`POST /auth/logout`**: revokes refresh token; idempotent on already-revoked
+- **`POST /auth/signup`** and **`POST /auth/login`** now return `refreshToken` in response
+- **CORS**: `CorsConfigurationSource` bean in `SecurityConfig`; origins configured via `app.cors.allowed-origins`
+- **`/actuator/health`**: added to `permitAll()` — accessible without auth
+- **V2 Flyway migration** (`V2__create_refresh_tokens_table.sql`): `refresh_tokens` table for PostgreSQL prod
+- **10 new integration tests**: refresh success/expired/revoked/invalid, logout success/invalid, actuator health, CORS headers
+- **`AuthServiceTest`** updated to mock `RefreshTokenService`
+- **ADR-005**: refresh token design rationale (hashed UUID, rotation, revocation)
+- **ADR-006**: MCP/agent-auth architecture note
+
+### Milestone 11 — Open-Source Readiness + Developer Experience (2026-06-19)
+**Branch**: `claude/refresh-tokens` (continuing same branch)
+- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; UI at `/swagger-ui.html`; disabled in prod
+- **`OpenApiConfig.java`**: `@OpenAPIDefinition` (title, description) + `@SecurityScheme` (bearerAuth / JWT)
+- **`AuthController`** fully annotated: `@Tag`, `@Operation`, `@ApiResponses` on all 4 endpoints
+- **All DTOs** annotated with `@Schema` (descriptions, examples): `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`, `ErrorResponse`
+- **`SecurityConfig`**: `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` added to `permitAll()`; `sameOrigin()` preserved from M9
+- **`application-prod.properties`**: `springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false`
+- **`CONTRIBUTING.md`**: branch naming, coding rules, test expectations, ADR process, security contact
+- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
+- **`.github/ISSUE_TEMPLATE/bug_report.md`** and **`feature_request.md`**: structured issue templates
+- **`.github/PULL_REQUEST_TEMPLATE.md`**: security checklist, docs-update checklist, breaking-change declaration
+- **`docs/DEPLOYMENT.md`**: environment variables table, profiles guide, Docker deployment, JAR deployment, cloud platform notes, production checklist, rollback guidance
+- **`docs/OBSERVABILITY.md`**: logging baseline (recommended events, not yet implemented), monitoring signals, future JSON logging setup, audit event table
+- **`docs/ADR/006`** extended: "Where to Start" guide for MCP contributors, suggested MCP tool names
+- **`README.md`**: updated badges (CI now configured), Swagger quick-start step, interactive docs link, accurate file-structure tree, accurate test inventory, updated roadmap (completed items marked ✅, priority table for next sprint)
+- **`AuthControllerIntegrationTest`**: +3 tests: `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
+- **40 tests — all passing** (includes security hardening + Swagger tests)
 
 ## Latest Metrics (2026-06-19)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 24 (0 failures — pending CI verification) |
-| Build status | CI will verify on next push |
-| Branch | `main` |
-| Open PRs | 0 |
-| Phase | 1 Complete + Phase 2 upcoming |
+| Test count | 40 (0 failures) |
+| Build status | `mvn test` — BUILD SUCCESS |
+| Branch | `claude/refresh-tokens` |
+| Open PRs | 1 (refresh tokens + open-source readiness sprint) |
+| Phase | 3 — Open-source readiness complete |
 
 ## Recent PR History
 
 | PR | Title | Status |
 |----|-------|--------|
+| TBD | feat: refresh tokens, logout, CORS, actuator auth + open-source readiness | Open — `claude/refresh-tokens` |
+| #9 | security: harden Dockerfile, frame options, and docker-compose secret handling | Merged 2026-06-19 |
 | #6 | fix: return 401 instead of 403 for unauthenticated requests | Merged 2026-06-14 |
 | #4 | security: harden JWT guard, .env protection, and missing test coverage | Merged |
 | #3 | config: separate H2 console setting by Spring profile | Merged |
@@ -83,6 +122,6 @@ Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior ses
 
 ## Branch Status
 
-- `main` — security hardening round 2 committed, pending push to trigger CI
-- No open feature branches
-- Phase 2 GitHub issues to be created after `gh auth login`
+- `main` — Phase 1 + security hardening, 24 tests
+- `claude/refresh-tokens` — Phase 2 + 3 feature branch, 40 tests, PR pending
+- `claude/rate-limit-login` — Rate limiting branch, separate PR pending

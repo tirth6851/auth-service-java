@@ -97,8 +97,11 @@ export JWT_SECRET="demo-secret-minimum-32-characters-long-12345"
 ```
 
 ### API
-- `POST /auth/signup` — register user, returns JWT
-- `POST /auth/login` — login, returns JWT
+- `POST /auth/signup` — register user, returns `{token, tokenType, refreshToken}`
+- `POST /auth/login` — authenticate user, returns `{token, tokenType, refreshToken}`
+- `POST /auth/refresh` — exchange refresh token for a new token pair (rotates)
+- `POST /auth/logout` — revoke refresh token (204 No Content)
+- `GET /actuator/health` — health check (no auth required)
 - Protected routes require: `Authorization: Bearer <token>`
 
 ### Stack

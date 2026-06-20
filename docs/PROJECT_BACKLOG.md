@@ -35,18 +35,49 @@ Replace H2 in-memory with PostgreSQL.
 
 ---
 
+## Recently Completed
+
+### ✅ Open-Source Readiness Sprint (branch: claude/refresh-tokens, 2026-06-19)
+- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; `/swagger-ui.html`; `/v3/api-docs`; disabled in prod
+- **`OpenApiConfig.java`**: `@OpenAPIDefinition` + `@SecurityScheme` (bearerAuth JWT)
+- **All endpoints** annotated: `@Tag`, `@Operation`, `@ApiResponse`, `@Schema` on DTOs
+- **`CONTRIBUTING.md`**: branch guide, coding rules, test expectations, ADR process
+- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
+- **GitHub issue templates** (bug, feature) + PR template (security checklist)
+- **`docs/DEPLOYMENT.md`**: profiles, env vars, Docker, JAR, cloud, production checklist, rollback
+- **`docs/OBSERVABILITY.md`**: logging baseline, monitoring signals, future JSON logging guide
+- **`docs/ADR/006`** extended with MCP contributor guide
+- **`README.md`**: updated throughout — badges, Swagger quick-start, accurate roadmap
+
+### ✅ Refresh Tokens (branch: claude/refresh-tokens, 2026-06-19)
+- `POST /auth/refresh` — validates refresh token, returns new token pair (rotated)
+- `POST /auth/logout` — revokes refresh token; idempotent
+- Signup and login both return `refreshToken` in response
+- Stored as SHA-256 hash in DB; 7-day TTL; token rotation on every refresh
+- V2 Flyway migration (`refresh_tokens` table)
+- 10 new integration tests
+
+### ✅ CORS (branch: claude/refresh-tokens, 2026-06-19)
+- `CorsConfigurationSource` bean in `SecurityConfig`
+- Configurable via `app.cors.allowed-origins` (default: localhost:3000, localhost:5173)
+- Tested with integration test for `Access-Control-Allow-Origin` header
+
+### ✅ Rate Limiting (branch: claude/rate-limit-login, 2026-06-19)
+- `POST /auth/login` — 10 attempts per 10 minutes per IP, 429 + `Retry-After` header
+- Bucket4j in-process, `ConcurrentHashMap<IP, Bucket>`, no Redis dependency
+- ADR-005 on rate-limit branch (to be renumbered on merge)
+
+---
+
 ## Medium Priority
 
-### Refresh Tokens
-- Issue a short-lived access token (15 min) + long-lived refresh token (7 days) on login
-- `POST /auth/refresh` — exchange valid refresh token for new access token
-- Store refresh tokens in DB (hashed); support revocation
-- `POST /auth/logout` — invalidate refresh token
+### Rate Limiting — `/auth/signup`
+- Currently only `/auth/login` is rate-limited; signup should also be protected
+- Same Bucket4j pattern, separate interceptor or shared config
 
-### Rate Limiting
-- Protect `/auth/login` and `/auth/signup` against brute force
-- Options: Bucket4j (in-process), Redis-backed rate limiter, or API gateway
-- Return 429 Too Many Requests with `Retry-After` header
+### `/auth/me` Endpoint
+- `GET /auth/me` — return current user's ID and email from the JWT claims
+- Useful for clients to verify token validity and retrieve identity without a separate DB call
 
 ### Audit Logging
 - Structured log on every auth event: signup, login success, login failure, token rejection

@@ -1,158 +1,165 @@
 # Session Handoff
 
-**Last updated**: 2026-06-19 (Security Hardening Round 2)  
-**Branch**: main  
-**Last commit before this session**: `89ad000` (docs: update HANDOFF.md with Sprint 1 Batch 1 completion)
+**Last updated**: 2026-06-19 (Open-source readiness + developer experience sprint)
+**Branch**: `claude/refresh-tokens` (off `main`)
+**Tests**: 40 passing (0 failures) — `mvn test` BUILD SUCCESS
 
 ---
 
 ## What Was Completed This Session
 
-### Security Hardening Round 2 — 4 fixes + 1 doc correction
+### Security Hardening Round 2 (merged to `main` as PR #9)
 
-**Fix A — Dockerfile: non-root runtime user**
-- Added `spring` system user/group in Stage 2 of Dockerfile
-- `USER spring` directive ensures container doesn't run as root
-- `docs/ARCHITECTURE.md` updated to note non-root user
+These changes landed on `main` independently and are now merged in:
 
-**Fix B — SecurityConfig: X-Frame-Options SAMEORIGIN**
-- Changed `frameOptions(f -> f.disable())` → `frameOptions(f -> f.sameOrigin())`
-- Disabling frame options globally was a clickjacking risk in production
-- SAMEORIGIN still allows H2 console frames locally (same-origin only)
-- Added integration test: `responses_includeXFrameOptionsSameOrigin()` in `AuthControllerIntegrationTest`
-- Total tests: **24** (was 23)
+- **`Dockerfile`**: non-root `spring` user in runtime stage (least-privilege container)
+- **`SecurityConfig`**: `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
+- **`docker-compose.yml`**: removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
+- **`.env.example`**: demo JWT_SECRET replaced with JwtUtil-rejected placeholder (closes onboarding-path gap)
+- **`.github/workflows/ci.yml`**: `upload-artifact@v3` → `@v4` (action deprecation fix)
+- **`CLAUDE_SESSION_START.md`**: corrected `APP_JWT_SECRET` → `JWT_SECRET`
+- **`docs/RUNBOOK.md`**, **`docs/ARCHITECTURE.md`**: updated to match changes
+- **`AuthControllerIntegrationTest`**: `responses_includeXFrameOptionsSameOrigin()` test added
 
-**Fix C — docker-compose: removed demo JWT_SECRET fallback**
-- Changed `${JWT_SECRET:-demo-secret-minimum-32-characters-long-12345}` → `${JWT_SECRET}`
-- Now docker-compose fails fast if JWT_SECRET is not set, matching the JwtUtil fail-fast design
+### OpenAPI / Swagger UI
 
-**Fix C2 — .env.example: replaced demo JWT_SECRET with JwtUtil-rejected placeholder**
-- Changed `JWT_SECRET=demo-secret-minimum-32-characters-long-12345` → `JWT_SECRET=ReplaceThisWithAStrongSecretOfAtLeast32Chars!`
-- The demo secret passed all three JwtUtil validation checks; standard onboarding (`cp .env.example .env` + `docker compose up`) would boot with the publicly-known weak secret
-- Now `.env.example` uses the exact PLACEHOLDER constant from JwtUtil.java:25, so `@PostConstruct init()` throws "app.jwt.secret is still the default placeholder" at startup
-- Closes the onboarding path gap left by the docker-compose fix alone
-- `docs/RUNBOOK.md` updated: prerequisites and environment table reflect the new requirement
+- **`pom.xml`**: Added `org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0`
+- **`config/OpenApiConfig.java`** (new): `@OpenAPIDefinition` (title, description, version) + `@SecurityScheme(type=HTTP, scheme="bearer", bearerFormat="JWT")` — enables Authorize button in Swagger UI
+- **`config/SecurityConfig.java`**: Added `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` to `permitAll()` — without this Swagger 401s
+- **`application-prod.properties`**: Added `springdoc.api-docs.enabled=false` + `springdoc.swagger-ui.enabled=false` — Swagger off in prod
+- **`controller/AuthController.java`**: Added `@Tag`, `@Operation`, `@ApiResponses` to all 4 endpoints (signup, login, refresh, logout)
+- **DTOs**: Added `@Schema` (description, example) to `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`
+- **`exception/ErrorResponse.java`**: Added `@Schema` to record fields
 
-**Fix D — ci.yml: upgraded upload-artifact@v3 → @v4**
-- `actions/upload-artifact@v3` was deprecated by GitHub (Nov 2024)
-- No functional change; prevents CI deprecation warnings and eventual breakage
+Swagger UI: `http://localhost:8080/swagger-ui.html`
+OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-**Doc contradiction fixed — CLAUDE_SESSION_START.md:95**
-- Changed `APP_JWT_SECRET` → `JWT_SECRET` (was inconsistent with every other file)
-- Spring property `app.jwt.secret` binds to `JWT_SECRET` env var (not `APP_JWT_SECRET`)
+### Contributor Readiness
 
----
+- **`CONTRIBUTING.md`** (new): branch naming, coding rules, test expectations, ADR process, security contact email
+- **`CODE_OF_CONDUCT.md`** (new): Contributor Covenant v2.1
+- **`.github/ISSUE_TEMPLATE/bug_report.md`** (new): structured bug report
+- **`.github/ISSUE_TEMPLATE/feature_request.md`** (new): ADR checkbox, acceptance criteria checklist
+- **`.github/PULL_REQUEST_TEMPLATE.md`** (new): docs-update checklist, security checklist, breaking-change declaration
 
-## Stale HANDOFF Correction (from previous session)
+### Deployment Docs
 
-The prior HANDOFF listed "Sprint 1 Batch 2: GitHub Actions CI Pipeline" as the NEXT task. This was incorrect — `.github/workflows/ci.yml` already existed in the repo (committed before the last 5 commits visible in `git log`). The Sprint 1 Batch 2 CI work was already done.
+- **`docs/DEPLOYMENT.md`** (new): environment variables table, profile comparison, Docker deployment steps, JAR deployment, cloud platform notes (Railway, ECS, Cloud Run), production checklist, rollback guidance, "what's not prod-ready" table
 
-Current state of Sprint 1 deliverables:
-- ✅ Sprint 1 Batch 1: Docker + docker-compose + /actuator/health (bb6df9e)
-- ✅ Sprint 1 Batch 2: GitHub Actions CI pipeline (already in .github/workflows/ci.yml)
-- ✅ Sprint 1 Batch 3: Security hardening round 2 (this session)
+### Observability
+
+- **`docs/OBSERVABILITY.md`** (new): logging baseline (recommended events, not yet implemented), dev vs prod log levels, structured JSON logging setup guide, monitoring signals table with alert thresholds, Actuator health endpoint usage, future audit log event table
+
+### MCP Direction
+
+- **`docs/ADR/006-mcp-agent-auth-architecture.md`** extended: added "Where to Start" section for MCP contributors — separate-project pattern, suggested MCP tool names mapping to REST endpoints, relationship to README
+
+### README
+
+- Updated CI badge (was "not configured", now "GitHub Actions")
+- Added `JWT_SECRET` export step to Quick Start
+- Added Swagger UI step (step 4) to Quick Start
+- Added interactive docs pointer to API Reference section
+- Updated file structure tree to match actual repo
+- Updated test inventory counts
+- Updated coverage gaps (Good First Issues framing)
+- Updated "What's Done" section: full current feature list (Phase 1 + 2 + 3)
+- Updated Roadmap: completed items marked ✅, remaining items as priority table with GitHub labels
 
 ---
 
 ## Outstanding Risks or Blockers
 
-- ⚠️ **mvn test not run this session** — Maven was not in PATH. All changes are non-breaking (SecurityConfig SAMEORIGIN is backward-compatible; Dockerfile user change is runtime-only; docker-compose and ci.yml fixes have no test-time impact). CI will run `mvn -B verify` on the next push and catch any issues.
-- ⚠️ **gh CLI token expired** — Could not create Phase 2 GitHub issues automatically. See "Next Steps" below for the issue text to create manually.
-- ⚠️ **Docker build not tested** — Docker not in PATH locally. CI pipeline will test on push.
+- ⚠️ **V2 Flyway migration untestable locally** — same as previous session; PostgreSQL Testcontainers would give full coverage
+- ⚠️ **Rate-limit branch unmerged** — `claude/rate-limit-login` is separate and should be merged first (or in parallel); 429 `@ApiResponse` intentionally removed from `AuthController` on this branch since rate limiting is not present here — will be re-added when `claude/rate-limit-login` merges
+- ⚠️ **Concurrent refresh race condition** — documented in ADR-005; acceptable for current scale
+- ⚠️ **Access token TTL still 1 hour** — should be 15 min in production; pure env config change
 
 ---
 
-## Files Changed
+## Files Changed (This Session)
 
-### Modified (9 files)
-- `Dockerfile` — added non-root spring user (Stage 2)
-- `src/main/java/com/authplatform/config/SecurityConfig.java` — frameOptions SAMEORIGIN
-- `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` — added X-Frame-Options test
-- `docker-compose.yml` — removed demo JWT_SECRET fallback
-- `.github/workflows/ci.yml` — upload-artifact@v3 → @v4
-- `CLAUDE_SESSION_START.md` — APP_JWT_SECRET → JWT_SECRET (line 95)
-- `.env.example` — JWT_SECRET changed from demo secret to JwtUtil-rejected placeholder
-- `docs/RUNBOOK.md` — updated Docker prerequisites section and JWT_SECRET example
-- `docs/ARCHITECTURE.md` — added non-root user note to Dockerfile Strategy section
+### New source files
+| File | Purpose |
+|------|---------|
+| `src/main/java/com/authplatform/config/OpenApiConfig.java` | OpenAPI definition + security scheme |
+
+### Modified source files
+| File | Change |
+|------|--------|
+| `pom.xml` | Added `springdoc-openapi-starter-webmvc-ui:2.5.0` |
+| `src/main/java/com/authplatform/config/SecurityConfig.java` | Swagger URLs + CORS bean added; `sameOrigin()` kept from security-hardening PR |
+| `src/main/java/com/authplatform/controller/AuthController.java` | OpenAPI annotations on all endpoints |
+| `src/main/java/com/authplatform/dto/SignupRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/LoginRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/AuthResponse.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/RefreshRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/dto/LogoutRequest.java` | `@Schema` annotations |
+| `src/main/java/com/authplatform/exception/ErrorResponse.java` | `@Schema` annotations |
+| `src/main/resources/application-prod.properties` | Swagger disabled in prod |
+| `src/test/java/com/authplatform/controller/AuthControllerIntegrationTest.java` | +3 tests: X-Frame-Options, OpenAPI docs, Swagger UI |
+
+### New doc/repo files
+| File | Purpose |
+|------|---------|
+| `CONTRIBUTING.md` | Full contributor guide |
+| `CODE_OF_CONDUCT.md` | Contributor Covenant v2.1 |
+| `.github/ISSUE_TEMPLATE/bug_report.md` | Bug issue template |
+| `.github/ISSUE_TEMPLATE/feature_request.md` | Feature request template |
+| `.github/PULL_REQUEST_TEMPLATE.md` | PR template |
+| `docs/DEPLOYMENT.md` | Deployment guide |
+| `docs/OBSERVABILITY.md` | Logging + monitoring baseline |
+
+### Docs updated
+- `docs/ADR/006-mcp-agent-auth-architecture.md` — extended with contributor guide
+- `docs/PROJECT_PROGRESS.md` — Milestones updated
+- `docs/PROJECT_BACKLOG.md` — open-source readiness sprint marked complete
+- `README.md` — badges, quick-start, file structure, test inventory, roadmap
 
 ---
 
 ## Tests Run & Results
 
 ```
-mvn test: NOT RUN (Maven not in PATH this session)
-Expected: 24 tests pass (23 existing + 1 new X-Frame-Options test)
-CI will verify on next push to main or claude/* branch
+Tests run: 27, Failures: 0, Errors: 0 — AuthControllerIntegrationTest
+Tests run:  8, Failures: 0, Errors: 0 — JwtUtilTest
+Tests run:  5, Failures: 0, Errors: 0 — AuthServiceTest
+─────────────────────────────────────────────────────
+Tests run: 40, Failures: 0, Errors: 0 — BUILD SUCCESS
 ```
+
+New tests (this merge): `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
 
 ---
 
-## Phase 2 GitHub Issues to Create
+## Exact Next Steps
 
-**Re-authenticate gh CLI**: `gh auth login` then create these issues:
+### Priority 1: Open PRs and merge
+1. Merge `claude/rate-limit-login` → `main` (simpler, no conflicts with this branch)
+2. Merge `claude/refresh-tokens` → `main` (this branch — includes all three sprints + security hardening merge)
+3. Update `main` branch badges after merge (test count stays 40; CI badge auto-updates)
 
-```bash
-gh issue create \
-  --title "Phase 2: PostgreSQL production migration" \
-  --body "Replace H2 in-memory with PostgreSQL 16. Tasks: add LOWER(email) functional index, migrate ddl-auto=update to Flyway-only, update tests to use Testcontainers or H2 profile. Aligned with roadmap item 1.3+1.4."
+### Priority 2: Good First Issues to label in GitHub
+These are well-scoped, documented, and low-risk for external contributors:
+- `GET /auth/me` — return user info (ID, email) from JWT claims; low effort
+- Merge `claude/rate-limit-login` — standalone, zero conflict
+- HikariCP connection pool config in `application-prod.properties`
+- PostgreSQL Testcontainers integration test — validates V2 migration
+- `JwtAuthenticationFilter` unit test — coverage gap, no Spring context needed
 
-gh issue create \
-  --title "Phase 2: Refresh tokens (POST /auth/refresh + POST /auth/logout)" \
-  --body "Issue short-lived access tokens (15 min) + long-lived refresh tokens (7 days). Store refresh tokens hashed in DB. Support revocation on logout. New endpoints: POST /auth/refresh, POST /auth/logout."
+### Priority 3: Production hardening
+- Set `app.jwt.expiration-ms=900000` (15 min) in prod env
+- Configure `app.cors.allowed-origins` to actual frontend domain before going live
+- TLS at load balancer (nginx/Caddy/ALB)
 
-gh issue create \
-  --title "Phase 2: Rate limiting on /auth/login and /auth/signup" \
-  --body "Protect auth endpoints from brute-force. Options: Bucket4j (in-process) or Redis-backed. Return 429 Too Many Requests with Retry-After header."
-
-gh issue create \
-  --title "Phase 2: GET /auth/me — current user identity endpoint" \
-  --body "Return current user ID + email from JWT claims without a DB call. Useful for clients to verify token validity and retrieve identity. Requires authenticated request."
-```
-
----
-
-## Exact First Steps for Next Session
-
-### Priority 1: Re-authenticate gh CLI and create Phase 2 issues
-```bash
-gh auth login
-# Then paste the 4 gh issue create commands above
-```
-
-### Priority 2: Verify CI is green
-Push this session's commits to trigger CI:
-```bash
-git push origin main
-# Check: GitHub Actions tab → CI job → all 24 tests pass
-```
-
-### Priority 3: Begin Phase 2 — PostgreSQL migration
-This is the highest-priority Phase 2 item. When ready:
-1. Read `docs/PROJECT_BACKLOG.md` "High Priority" → "PostgreSQL Migration" section
-2. Read `docs/TRD.md` for persistence requirements
-3. Consider creating an ADR (`docs/ADR/005-testcontainers-for-integration-tests.md`) for the Testcontainers decision
-4. Update `src/test/resources/application.properties` to use Testcontainers or keep H2
-
-### Standard Process for Any Task
-1. Read CLAUDE.md first
-2. Use MISSION_CONTROL.md to assess task risk
-3. Read task-relevant docs
-4. Follow code workflow (design → implement → test → docs)
-5. **MANDATORY: Update HANDOFF.md at session end**
+### Standard process
+1. Read `CLAUDE.md` + this `HANDOFF.md` first
+2. Run `mvn test` (must stay at 40 passing, 0 failures)
+3. For any auth/config change: run `/security-review`
+4. Update `HANDOFF.md` before ending session
 
 ---
 
-## Handoff Validation Checklist
+## Summary
 
-- [x] All security fixes completed (A: non-root, B: SAMEORIGIN, C: docker-compose fallback, C2: .env.example placeholder, D: ci.yml)
-- [x] Doc contradiction fixed (APP_JWT_SECRET → JWT_SECRET)
-- [x] Stale HANDOFF corrected (CI pipeline was already done — not "next")
-- [x] New test added for SecurityConfig change (X-Frame-Options SAMEORIGIN)
-- [x] ARCHITECTURE.md and RUNBOOK.md updated in sync with code changes
-- [x] Phase 2 GitHub issue commands documented (ready to run after gh auth login)
-- [x] Outstanding risks flagged (mvn test not run, gh token expired, Docker not tested)
-- [x] Next steps specified (re-auth gh, push to trigger CI, start PostgreSQL migration)
-
----
-
-*Last updated: 2026-06-19 (Security Hardening Round 2). Next session: re-auth gh CLI, push to trigger CI, then begin Phase 2 PostgreSQL migration.*
+Sprint added: OpenAPI/Swagger UI (working, disabled in prod), contributor docs (CONTRIBUTING, CODE_OF_CONDUCT, GitHub templates), DEPLOYMENT.md (deployment guide), OBSERVABILITY.md (logging/monitoring baseline), and ADR-006 extended with MCP contributor guide. Security hardening PR #9 merged in (sameOrigin frame options, non-root Dockerfile, .env.example fix). README fully updated. Security review passed (2 warnings, 0 failures). 40 tests passing. Branch `claude/refresh-tokens` is ready for PR.
