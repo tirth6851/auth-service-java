@@ -1,4 +1,4 @@
-# ADR 005 — Rate Limiting Strategy for /auth/login
+# ADR 007 — Rate Limiting Strategy for /auth/login
 
 **Date:** 2026-06-19  
 **Status:** Accepted  

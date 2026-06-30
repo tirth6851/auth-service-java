@@ -2,8 +2,8 @@
 
 ## Current Status
 
-**Phase 1 — Complete and stable.**
-All acceptance criteria met. 23 tests pass. `main` branch is green.
+**Phase 1 — Complete and stable. Phase 2/3 features (refresh tokens, CORS, OpenAPI, /auth/me, rate limiting) merged to `main`.**
+See "Latest Metrics" below for current test count. `main` branch is green.
 
 ## Milestone History
 
@@ -38,7 +38,7 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - JwtUtil validation tests strengthened (min key length, blank secret)
 - Integration test `protectedRoute_isDenied_whenNoToken` and `_whenInvalidToken` added
 
-### Milestone 5 — 401 Fix (PR #6) — **Latest**
+### Milestone 5 — 401 Fix (PR #6)
 **Commit:** `8140b4e fix: return 401 instead of 403 for unauthenticated requests`
 **Merged:** 2026-06-14
 - **Root cause fixed:** Spring Security 6 defaulted to `Http403ForbiddenEntryPoint`; unauthenticated requests incorrectly returned 403.
@@ -48,31 +48,68 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **Test infrastructure:** `src/test/resources/application.properties` created so integration tests run without `JWT_SECRET` env var.
 - Total tests: **23** (was 17 before Milestone 4 expansions + this PR added 3 net new).
 
-### Milestone 6 — Security Hardening Round 2 (2026-06-19)
-**Commits**: pending push to CI
+### Milestone 6–8 — Docker, PostgreSQL, Actuator (Sessions since M5)
+- Multi-stage Dockerfile + docker-compose.yml with PostgreSQL 16
+- Flyway V1 migration (`V1__create_users_table.sql`, LOWER(email) index)
+- `/actuator/health` endpoint enabled; `.env.example` + `.dockerignore` added
+- PostgreSQL datasource, `application-prod.properties`, H2 for dev/test unchanged
+
+### Milestone 9 — Security Hardening Round 2 (PR #9, merged 2026-06-19)
+**Branch**: `claude/security-hardening-round2`
 - `Dockerfile` — non-root `spring` user in runtime stage (least-privilege)
 - `SecurityConfig` — `frameOptions.disable()` → `frameOptions.sameOrigin()` (clickjacking protection)
 - `AuthControllerIntegrationTest` — added `responses_includeXFrameOptionsSameOrigin()` test
 - `docker-compose.yml` — removed demo `JWT_SECRET` fallback that bypassed JwtUtil validation
 - `.env.example` — demo JWT_SECRET replaced with JwtUtil-rejected placeholder (closes onboarding-path gap)
 - `.github/workflows/ci.yml` — `upload-artifact@v3` → `@v4` (action deprecation fix)
-- `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET` (doc contradiction)
+- `CLAUDE_SESSION_START.md` — corrected `APP_JWT_SECRET` → `JWT_SECRET`
 - `docs/RUNBOOK.md`, `docs/ARCHITECTURE.md` — updated to match changes
 
-Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior session; prior HANDOFF was stale on this point.
+### Milestone 10 — Refresh Tokens, Logout, CORS, Actuator Security (2026-06-19)
+**Branch**: `claude/refresh-tokens`
+- **Refresh tokens**: UUID v4 stored as SHA-256 hash; 7-day TTL; rotation on every refresh
+- **`POST /auth/refresh`**: validates token (not expired, not revoked), revokes old, issues new pair
+- **`POST /auth/logout`**: revokes refresh token; idempotent on already-revoked
+- **`POST /auth/signup`** and **`POST /auth/login`** now return `refreshToken` in response
+- **CORS**: `CorsConfigurationSource` bean in `SecurityConfig`; origins configured via `app.cors.allowed-origins`
+- **`/actuator/health`**: added to `permitAll()` — accessible without auth
+- **V2 Flyway migration** (`V2__create_refresh_tokens_table.sql`): `refresh_tokens` table for PostgreSQL prod
+- **10 new integration tests**: refresh success/expired/revoked/invalid, logout success/invalid, actuator health, CORS headers
+- **`AuthServiceTest`** updated to mock `RefreshTokenService`
+- **ADR-005**: refresh token design rationale (hashed UUID, rotation, revocation)
+- **ADR-006**: MCP/agent-auth architecture note
 
-### Milestone 7 — GET /auth/me (2026-06-19)
-**Branch**: `claude/auth-me` (pending CI + PR)
+### Milestone 11 — Open-Source Readiness + Developer Experience (2026-06-19)
+**Branch**: `claude/refresh-tokens` (continuing same branch)
+- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; UI at `/swagger-ui.html`; disabled in prod
+- **`OpenApiConfig.java`**: `@OpenAPIDefinition` (title, description) + `@SecurityScheme` (bearerAuth / JWT)
+- **`AuthController`** fully annotated: `@Tag`, `@Operation`, `@ApiResponses` on all 4 endpoints
+- **All DTOs** annotated with `@Schema` (descriptions, examples): `SignupRequest`, `LoginRequest`, `AuthResponse`, `RefreshRequest`, `LogoutRequest`, `ErrorResponse`
+- **`SecurityConfig`**: `/v3/api-docs/**`, `/swagger-ui/**`, `/swagger-ui.html` added to `permitAll()`; `sameOrigin()` preserved from M9
+- **`application-prod.properties`**: `springdoc.api-docs.enabled=false`, `springdoc.swagger-ui.enabled=false`
+- **`CONTRIBUTING.md`**: branch naming, coding rules, test expectations, ADR process, security contact
+- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
+- **`.github/ISSUE_TEMPLATE/bug_report.md`** and **`feature_request.md`**: structured issue templates
+- **`.github/PULL_REQUEST_TEMPLATE.md`**: security checklist, docs-update checklist, breaking-change declaration
+- **`docs/DEPLOYMENT.md`**: environment variables table, profiles guide, Docker deployment, JAR deployment, cloud platform notes, production checklist, rollback guidance
+- **`docs/OBSERVABILITY.md`**: logging baseline (recommended events, not yet implemented), monitoring signals, future JSON logging setup, audit event table
+- **`docs/ADR/006`** extended: "Where to Start" guide for MCP contributors, suggested MCP tool names
+- **`README.md`**: updated badges (CI now configured), Swagger quick-start step, interactive docs link, accurate file-structure tree, accurate test inventory, updated roadmap (completed items marked ✅, priority table for next sprint)
+- **`AuthControllerIntegrationTest`**: +3 tests: `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
+- **40 tests — all passing** (includes security hardening + Swagger tests)
+
+### Milestone 12 — GET /auth/me (2026-06-19)
+**Branch**: `claude/auth-me`
 - `GET /auth/me` — protected endpoint returning id, email, verified, createdAt
 - `MeResponse` DTO (record) — no entity exposure
 - `AuthService.getCurrentUser(email)` — DB lookup; 401 if user not found
-- `SecurityConfig` — `/auth/**` wildcard → explicit `/auth/signup`, `/auth/login` (closes security gap)
+- `SecurityConfig` — explicit `permitAll` list (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, plus health/swagger paths); `/auth/me` requires auth
 - `application.properties` — ISO 8601 date serialization enabled
 - `AuthControllerIntegrationTest` — 3 new tests (valid token → 200, no token → 401, invalid token → 401)
 - `docs/API_CONTRACT.md` — GET /auth/me endpoint spec added
 
-### Milestone 8 — Rate Limiting on /auth/login (2026-06-19)
-**Branch**: `claude/rate-limit-login` (off `main`)
+### Milestone 13 — Rate Limiting on /auth/login (2026-06-19)
+**Branch**: `claude/rate-limit-login` (stacked on `claude/auth-me`)
 - `pom.xml` — added `com.bucket4j:bucket4j-core:8.10.1`
 - `LoginRateLimitInterceptor` — HandlerInterceptor; per-IP token bucket (10/10min); throws `RateLimitExceededException`
 - `WebConfig` — registers interceptor for `/auth/login` only
@@ -82,23 +119,32 @@ Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior ses
 - `test/application.properties` — capacity overridden to 3 for fast integration tests
 - `AuthControllerIntegrationTest` — 3 new tests (under limit → 401, over limit → 429, 429 header + body)
 - `docs/API_CONTRACT.md` — rate limiting section updated with policy, headers, config
-- `docs/ADR/005-rate-limiting-strategy.md` — design rationale (library, keying, placement, refill strategy)
+- `docs/ADR/007-rate-limiting-strategy.md` — design rationale (library, keying, placement, refill strategy); renumbered from 005 to avoid collision with the refresh-token ADR
 
-## Latest Metrics (2026-06-19)
+### Milestone 14 — Merge consolidation: auth-me + rate-limiting into main (2026-06-30)
+- Merged `claude/rate-limit-login` (which already contained `claude/auth-me`) into `main` after PR #10
+- Resolved conflicts in `SecurityConfig` (kept explicit permitAll list so `/auth/me` stays protected), `AuthController` (all 5 endpoints retained), `AuthService` (auto-merged cleanly), `application.properties` (dev + test, all settings retained)
+- Renumbered `docs/ADR/005-rate-limiting-strategy.md` → `007-rate-limiting-strategy.md`
+- Closed stale PR #5 (401 fix already merged via PR #6)
+
+## Latest Metrics (2026-06-30)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 30 (0 failures — pending CI verification) |
-| Build status | CI will verify on push |
-| Branch | `claude/auth-me` |
-| Open PRs | 0 (security hardening branch also pending PR) |
-| Phase | Phase 2 in progress |
+| Test count | 46 (0 failures) |
+| Build status | `mvn test` — BUILD SUCCESS |
+| Branch | `main` |
+| Open PRs | 0 |
+| Phase | 3 — refresh tokens, CORS, OpenAPI, /auth/me, rate limiting all merged |
 
 ## Recent PR History
 
 | PR | Title | Status |
 |----|-------|--------|
+| #10 | feat: refresh tokens, logout, CORS, and actuator security | Merged 2026-06-30 |
+| #9 | security: harden Dockerfile, frame options, and docker-compose secret handling | Merged 2026-06-19 |
 | #6 | fix: return 401 instead of 403 for unauthenticated requests | Merged 2026-06-14 |
+| #5 | fix: return 401 Unauthorized for unauthenticated requests | Closed 2026-06-30 (superseded by #6) |
 | #4 | security: harden JWT guard, .env protection, and missing test coverage | Merged |
 | #3 | config: separate H2 console setting by Spring profile | Merged |
 | #2 | docs: comprehensive README audit, roadmap, and next-steps guide | Merged |
@@ -106,6 +152,5 @@ Also noted: Sprint 1 Batch 2 (CI pipeline) was already complete from a prior ses
 
 ## Branch Status
 
-- `main` — security hardening round 2 committed, pending push to trigger CI
-- No open feature branches
-- Phase 2 GitHub issues to be created after `gh auth login`
+- `main` — Phase 1 + PostgreSQL/Docker/CI + security hardening + refresh tokens/CORS/OpenAPI + /auth/me + rate limiting, all merged
+- `claude/auth-me`, `claude/rate-limit-login` — merged into `main`; safe to delete
