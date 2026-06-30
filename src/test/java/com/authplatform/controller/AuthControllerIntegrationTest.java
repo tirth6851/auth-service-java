@@ -150,6 +150,124 @@ class AuthControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // --- GET /auth/me tests ---
+
+    @Test
+    void authMe_returns200WithUserData_whenValidToken() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"meuser@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String token = JsonPath.read(signupResponse, "$.token");
+
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.email").value("meuser@example.com"))
+                .andExpect(jsonPath("$.verified").value(false))
+                .andExpect(jsonPath("$.createdAt").isString());
+    }
+
+    @Test
+    void authMe_returns401_whenNoToken() throws Exception {
+        mockMvc.perform(get("/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authMe_returns401_whenInvalidToken() throws Exception {
+        mockMvc.perform(get("/auth/me")
+                        .header("Authorization", "Bearer not.a.valid.token"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // --- Rate limiting tests (/auth/login, capacity=3 in test config) ---
+
+    @Test
+    void login_underRateLimit_returns401NotRateLimited() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"underrate@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+
+        // 2 of 3 allowed attempts — must get 401 (wrong creds), not 429
+        for (int i = 0; i < 2; i++) {
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"underrate@example.com","password":"wrongpass"}
+                                """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Invalid credentials"));
+        }
+    }
+
+    @Test
+    void login_returns429_whenRateLimitExceeded() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"ratelimit@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"ratelimit@example.com","password":"wrongpass"}
+                                """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // 4th attempt must be rate-limited
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"ratelimit@example.com","password":"wrongpass"}
+                            """))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void login_returns429_withRetryAfterHeaderAndErrorBody() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"retryafter@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"retryafter@example.com","password":"wrongpass"}
+                                """))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        // 4th attempt: 429 + Retry-After header + error body
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"retryafter@example.com","password":"wrongpass"}
+                            """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Too many login attempts. Please try again later."));
+    }
+
     // --- Security header tests ---
 
     @Test

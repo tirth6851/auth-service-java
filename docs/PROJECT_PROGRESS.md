@@ -2,8 +2,8 @@
 
 ## Current Status
 
-**Phase 1 — Complete and stable.**
-All acceptance criteria met. 23 tests pass. `main` branch is green.
+**Phase 1 — Complete and stable. Phase 2/3 features (refresh tokens, CORS, OpenAPI, /auth/me, rate limiting) merged to `main`.**
+See "Latest Metrics" below for current test count. `main` branch is green.
 
 ## Milestone History
 
@@ -98,23 +98,53 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **`AuthControllerIntegrationTest`**: +3 tests: `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
 - **40 tests — all passing** (includes security hardening + Swagger tests)
 
-## Latest Metrics (2026-06-19)
+### Milestone 12 — GET /auth/me (2026-06-19)
+**Branch**: `claude/auth-me`
+- `GET /auth/me` — protected endpoint returning id, email, verified, createdAt
+- `MeResponse` DTO (record) — no entity exposure
+- `AuthService.getCurrentUser(email)` — DB lookup; 401 if user not found
+- `SecurityConfig` — explicit `permitAll` list (`/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, plus health/swagger paths); `/auth/me` requires auth
+- `application.properties` — ISO 8601 date serialization enabled
+- `AuthControllerIntegrationTest` — 3 new tests (valid token → 200, no token → 401, invalid token → 401)
+- `docs/API_CONTRACT.md` — GET /auth/me endpoint spec added
+
+### Milestone 13 — Rate Limiting on /auth/login (2026-06-19)
+**Branch**: `claude/rate-limit-login` (stacked on `claude/auth-me`)
+- `pom.xml` — added `com.bucket4j:bucket4j-core:8.10.1`
+- `LoginRateLimitInterceptor` — HandlerInterceptor; per-IP token bucket (10/10min); throws `RateLimitExceededException`
+- `WebConfig` — registers interceptor for `/auth/login` only
+- `RateLimitExceededException` — carries `retryAfterSeconds` for header
+- `GlobalExceptionHandler` — `handleRateLimit()` returns 429 + `Retry-After` header + `ErrorResponse`
+- `application.properties` — rate limit defaults configurable via env (`app.ratelimit.login.*`)
+- `test/application.properties` — capacity overridden to 3 for fast integration tests
+- `AuthControllerIntegrationTest` — 3 new tests (under limit → 401, over limit → 429, 429 header + body)
+- `docs/API_CONTRACT.md` — rate limiting section updated with policy, headers, config
+- `docs/ADR/007-rate-limiting-strategy.md` — design rationale (library, keying, placement, refill strategy); renumbered from 005 to avoid collision with the refresh-token ADR
+
+### Milestone 14 — Merge consolidation: auth-me + rate-limiting into main (2026-06-30)
+- Merged `claude/rate-limit-login` (which already contained `claude/auth-me`) into `main` after PR #10
+- Resolved conflicts in `SecurityConfig` (kept explicit permitAll list so `/auth/me` stays protected), `AuthController` (all 5 endpoints retained), `AuthService` (auto-merged cleanly), `application.properties` (dev + test, all settings retained)
+- Renumbered `docs/ADR/005-rate-limiting-strategy.md` → `007-rate-limiting-strategy.md`
+- Closed stale PR #5 (401 fix already merged via PR #6)
+
+## Latest Metrics (2026-06-30)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 40 (0 failures) |
+| Test count | 46 (0 failures) |
 | Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `claude/refresh-tokens` |
-| Open PRs | 1 (refresh tokens + open-source readiness sprint) |
-| Phase | 3 — Open-source readiness complete |
+| Branch | `main` |
+| Open PRs | 0 |
+| Phase | 3 — refresh tokens, CORS, OpenAPI, /auth/me, rate limiting all merged |
 
 ## Recent PR History
 
 | PR | Title | Status |
 |----|-------|--------|
-| TBD | feat: refresh tokens, logout, CORS, actuator auth + open-source readiness | Open — `claude/refresh-tokens` |
+| #10 | feat: refresh tokens, logout, CORS, and actuator security | Merged 2026-06-30 |
 | #9 | security: harden Dockerfile, frame options, and docker-compose secret handling | Merged 2026-06-19 |
 | #6 | fix: return 401 instead of 403 for unauthenticated requests | Merged 2026-06-14 |
+| #5 | fix: return 401 Unauthorized for unauthenticated requests | Closed 2026-06-30 (superseded by #6) |
 | #4 | security: harden JWT guard, .env protection, and missing test coverage | Merged |
 | #3 | config: separate H2 console setting by Spring profile | Merged |
 | #2 | docs: comprehensive README audit, roadmap, and next-steps guide | Merged |
@@ -122,6 +152,5 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 
 ## Branch Status
 
-- `main` — Phase 1 + security hardening, 24 tests
-- `claude/refresh-tokens` — Phase 2 + 3 feature branch, 40 tests, PR pending
-- `claude/rate-limit-login` — Rate limiting branch, separate PR pending
+- `main` — Phase 1 + PostgreSQL/Docker/CI + security hardening + refresh tokens/CORS/OpenAPI + /auth/me + rate limiting, all merged
+- `claude/auth-me`, `claude/rate-limit-login` — merged into `main`; safe to delete

@@ -47,9 +47,11 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/auth/**", "/h2-console/**", "/error", "/actuator/health",
+                                "/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout",
+                                "/h2-console/**", "/error", "/actuator/health",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
                         ).permitAll()
+                        // /auth/me intentionally NOT permitAll — requires a valid Bearer token
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))

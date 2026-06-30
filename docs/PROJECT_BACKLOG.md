@@ -12,60 +12,55 @@ _(Nothing blocking. Phase 1 is complete and stable.)_
 
 ## High Priority
 
-### PostgreSQL Migration
-Replace H2 in-memory with PostgreSQL.
-- Add `spring-boot-starter-data-jpa` PostgreSQL driver dependency
-- Replace H2 datasource config with Postgres connection string (env-var driven)
-- Add Flyway or Liquibase for schema migrations (replace `ddl-auto=update`)
-- Add `LOWER(email)` functional unique index for case-insensitive uniqueness
-- Update `docker-compose.yml` (create it) with Postgres service
-- Update `src/test/resources/application.properties` to use H2 or TestContainers
-
-### Docker / Docker Compose
-- `Dockerfile` (multi-stage build: Maven compile → JRE runtime image)
-- `docker-compose.yml` with `app` + `postgres` services
-- `.env.example` documenting required env vars (`JWT_SECRET`, `POSTGRES_*`)
-- Health check endpoint (`/actuator/health` or custom `/health`)
-
-### CI/CD Pipeline
-- GitHub Actions workflow: compile → test → build image → push to registry
-- Enforce `mvn test` on every PR targeting `main`
-- Secret scanning step (detect committed `JWT_SECRET`)
-- Optional: deploy to a cloud target (Railway, Fly.io, Render) on merge to `main`
+_(Nothing currently queued — see Medium Priority below.)_
 
 ---
 
 ## Recently Completed
 
-### ✅ Open-Source Readiness Sprint (branch: claude/refresh-tokens, 2026-06-19)
-- **OpenAPI / Swagger UI**: `springdoc-openapi-starter-webmvc-ui:2.5.0`; `/swagger-ui.html`; `/v3/api-docs`; disabled in prod
-- **`OpenApiConfig.java`**: `@OpenAPIDefinition` + `@SecurityScheme` (bearerAuth JWT)
-- **All endpoints** annotated: `@Tag`, `@Operation`, `@ApiResponse`, `@Schema` on DTOs
-- **`CONTRIBUTING.md`**: branch guide, coding rules, test expectations, ADR process
-- **`CODE_OF_CONDUCT.md`**: Contributor Covenant v2.1
-- **GitHub issue templates** (bug, feature) + PR template (security checklist)
-- **`docs/DEPLOYMENT.md`**: profiles, env vars, Docker, JAR, cloud, production checklist, rollback
-- **`docs/OBSERVABILITY.md`**: logging baseline, monitoring signals, future JSON logging guide
-- **`docs/ADR/006`** extended with MCP contributor guide
-- **`README.md`**: updated throughout — badges, Swagger quick-start, accurate roadmap
+### ✅ PostgreSQL Migration (commit e51d94f)
+- PostgreSQL driver + Flyway in `pom.xml`
+- `application-prod.properties` with env-driven DB config
+- `V1__create_users_table.sql` Flyway migration
+- H2 kept for local dev; prod uses PostgreSQL
+- ⚠ Remaining: `LOWER(email)` functional unique index not yet added
 
-### ✅ Refresh Tokens (branch: claude/refresh-tokens, 2026-06-19)
+### ✅ Docker / Docker Compose (commit bb6df9e + 0eeeef4)
+- Multi-stage `Dockerfile` (Maven build → JRE Alpine, non-root user)
+- `docker-compose.yml` with `postgres` + `app` services, healthchecks
+- `.env.example` documenting `JWT_SECRET`, `POSTGRES_*` (placeholder, not demo secret)
+- `/actuator/health` endpoint
+
+### ✅ CI/CD Pipeline (commit fd08df2 + 0eeeef4)
+- `.github/workflows/ci.yml`: JDK 17, `mvn -B verify`, JaCoCo report upload
+- Triggers on push to `main` and `claude/**`, PR to `main`
+- `upload-artifact@v4`
+
+### ✅ Refresh Tokens, Logout, CORS, Actuator Security (PR #10)
 - `POST /auth/refresh` — validates refresh token, returns new token pair (rotated)
 - `POST /auth/logout` — revokes refresh token; idempotent
 - Signup and login both return `refreshToken` in response
-- Stored as SHA-256 hash in DB; 7-day TTL; token rotation on every refresh
+- Stored as SHA-256 hash in DB; 7-day TTL; token rotation on every refresh (ADR-005)
 - V2 Flyway migration (`refresh_tokens` table)
-- 10 new integration tests
+- `CorsConfigurationSource` bean, configurable via `app.cors.allowed-origins`
+- `/actuator/health` added to `permitAll()`
 
-### ✅ CORS (branch: claude/refresh-tokens, 2026-06-19)
-- `CorsConfigurationSource` bean in `SecurityConfig`
-- Configurable via `app.cors.allowed-origins` (default: localhost:3000, localhost:5173)
-- Tested with integration test for `Access-Control-Allow-Origin` header
+### ✅ Open-Source Readiness Sprint (PR #10)
+- OpenAPI / Swagger UI (`springdoc-openapi`), disabled in prod
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, GitHub issue/PR templates
+- `docs/DEPLOYMENT.md`, `docs/OBSERVABILITY.md`
+- `docs/ADR/006-mcp-agent-auth-architecture.md`
 
-### ✅ Rate Limiting (branch: claude/rate-limit-login, 2026-06-19)
-- `POST /auth/login` — 10 attempts per 10 minutes per IP, 429 + `Retry-After` header
-- Bucket4j in-process, `ConcurrentHashMap<IP, Bucket>`, no Redis dependency
-- ADR-005 on rate-limit branch (to be renumbered on merge)
+### ✅ GET /auth/me Endpoint (branch `claude/auth-me`)
+- Returns `id`, `email`, `verified`, `createdAt` from the database (DB-backed for a richer response than JWT claims alone)
+- Requires a valid Bearer token; explicitly excluded from `SecurityConfig` `permitAll` — 401 on missing/invalid token or deleted user
+
+### ✅ Rate Limiting on /auth/login (branch `claude/rate-limit-login`)
+- Bucket4j in-process token bucket; 10 attempts / 10 min / IP
+- 429 Too Many Requests + `Retry-After` header on breach
+- Keyed by `remoteAddr` (not XFF — attacker-controlled)
+- ADR-007 documents design choices (renumbered from ADR-005 on the source branch to avoid collision with the refresh-token ADR-005)
+- ⚠ Remaining: `/auth/signup` not yet rate-limited
 
 ---
 
@@ -74,10 +69,6 @@ Replace H2 in-memory with PostgreSQL.
 ### Rate Limiting — `/auth/signup`
 - Currently only `/auth/login` is rate-limited; signup should also be protected
 - Same Bucket4j pattern, separate interceptor or shared config
-
-### `/auth/me` Endpoint
-- `GET /auth/me` — return current user's ID and email from the JWT claims
-- Useful for clients to verify token validity and retrieve identity without a separate DB call
 
 ### Audit Logging
 - Structured log on every auth event: signup, login success, login failure, token rejection
@@ -89,9 +80,21 @@ Replace H2 in-memory with PostgreSQL.
 - `JwtAuthenticationFilter` checks denylist before accepting token
 - Required for security-sensitive deployments
 
-### `/auth/me` Endpoint
-- `GET /auth/me` — return current user's ID and email from the JWT claims
-- Useful for clients to verify token validity and retrieve identity without a separate DB call
+### `LOWER(email)` Functional Index
+- Add a case-insensitive unique index on `users.email` in PostgreSQL (carried over from the PostgreSQL Migration item)
+
+### Concurrent Refresh Race Condition
+- Documented limitation in ADR-005: concurrent refresh with the same token under READ_COMMITTED isolation can both succeed
+- Mitigation: `@Version` optimistic locking on `RefreshToken`
+- Low priority — risk is negligible at current scale
+
+### Production Access Token TTL
+- Access tokens default to 1 hour (`app.jwt.expiration-ms=3600000`)
+- With refresh tokens deployed, production should reduce this to 15 minutes (`900000`) — pure env config change
+
+### PostgreSQL Testcontainers
+- Replace H2-only test profile with Testcontainers-backed PostgreSQL integration tests
+- Validates Flyway migrations (`V1`, `V2`) against the real production engine
 
 ---
 
@@ -101,7 +104,7 @@ Replace H2 in-memory with PostgreSQL.
 - Expose authentication operations as MCP tools so AI agents can authenticate API calls autonomously
 - Tools: `signup`, `login`, `validate_token`, `refresh_token`
 - Session-aware: agent holds a token in its context and re-authenticates when it expires
-- This is the core "Agent-Native Authentication Platform" vision
+- This is the core "Agent-Native Authentication Platform" vision — see ADR-006
 
 ### Machine-Readable Permission Scopes
 - Replace coarse `authenticated` / `unauthenticated` with capability-based scopes in JWT claims
@@ -116,6 +119,7 @@ Replace H2 in-memory with PostgreSQL.
 
 ### Email Verification / OTP
 - Send verification email on signup; block login until verified
+- `User.verified` field already exists (always `false` today) — `/auth/me` already exposes it
 - OTP flow for password reset
 - Requires SMTP integration (SendGrid, Resend, SES)
 

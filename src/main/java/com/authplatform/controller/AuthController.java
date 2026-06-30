@@ -3,6 +3,7 @@ package com.authplatform.controller;
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
 import com.authplatform.dto.LogoutRequest;
+import com.authplatform.dto.MeResponse;
 import com.authplatform.dto.RefreshRequest;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.exception.ErrorResponse;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -104,5 +106,21 @@ public class AuthController {
     public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Get the current authenticated user",
+            description = "Returns the caller's ID, email, verification status, and account creation time. " +
+                    "Requires a valid Bearer access token."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Current user returned",
+                    content = @Content(schema = @Schema(implementation = MeResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing, invalid, or expired access token",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/me")
+    public ResponseEntity<MeResponse> me(Authentication authentication) {
+        return ResponseEntity.ok(authService.getCurrentUser(authentication.getName()));
     }
 }
