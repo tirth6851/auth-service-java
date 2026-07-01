@@ -1,5 +1,6 @@
 package com.authplatform.config;
 
+import com.authplatform.security.AgentAuthenticationFilter;
 import com.authplatform.security.Http401UnauthorizedEntryPoint;
 import com.authplatform.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,14 +24,17 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AgentAuthenticationFilter agentAuthenticationFilter;
     private final Http401UnauthorizedEntryPoint unauthorizedEntryPoint;
 
     @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
     private String allowedOrigins;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          AgentAuthenticationFilter agentAuthenticationFilter,
                           Http401UnauthorizedEntryPoint unauthorizedEntryPoint) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.agentAuthenticationFilter = agentAuthenticationFilter;
         this.unauthorizedEntryPoint = unauthorizedEntryPoint;
     }
 
@@ -57,6 +61,9 @@ public class SecurityConfig {
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))
                 // SAMEORIGIN: allows H2 console frames locally while blocking external framing
                 .headers(h -> h.frameOptions(f -> f.sameOrigin()))
+                // Agent filter runs before the JWT filter; each acts only on its own token
+                // prefix (ak_ vs a JWT) and sets auth only when none is present yet.
+                .addFilterBefore(agentAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
