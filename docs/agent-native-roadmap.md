@@ -87,9 +87,12 @@ machine credential.
 - New entity **`AgentClient`**: `id`, `name`, `keyHash` (SHA-256 of raw key —
   reuse the refresh-token hashing util), `scopes` (set), `createdAt`,
   `lastUsedAt`, `revokedAt`.
-- Raw key shown **once** at creation (format e.g. `ak_live_<random>`), never stored.
-- Presented by clients as `Authorization: Bearer ak_live_…` **or** a dedicated
-  `X-Agent-Key` header (decision in §8).
+- Raw key shown **once** at creation (format `ak_live_<random>`), never stored.
+- **Decision (§10.1): presented as `Authorization: Bearer ak_live_…`**, disambiguated
+  from user JWTs by the `ak_` prefix. `Authorization: Bearer` is what the Claude API
+  MCP connector and standard HTTP clients send natively; the `ak_` prefix lets the
+  filter chain route agent keys and user JWTs apart cleanly (a JWT has three
+  dot-separated segments, an agent key starts `ak_`).
 - New **`AgentAuthenticationFilter`** (sibling to `JwtAuthenticationFilter`):
   resolves the key → `AgentClient` → builds an `Authentication` whose
   authorities are the client's scopes. Rejects revoked/expired keys via the
@@ -126,6 +129,10 @@ Greenfield. Scope-based, enforced from the agent's `Authentication` authorities.
 
 ### Scope catalog (initial)
 
+**Decision (§10.5): start coarse — per-resource scopes**, refine to per-action only
+when a real least-privilege need appears (e.g. an agent allowed to reset passwords
+but not create users — hence `users:reset_password` is already split out below).
+
 ```
 users:read           users:write          users:reset_password
 sessions:read        sessions:revoke      *  (superuser, audited)
@@ -159,8 +166,9 @@ admin-agent:
 
 ## 7. Phase D — MCP Integration
 
-A dedicated **MCP server** (separate process; language TBD in §8) exposes the
-Phase B tools and calls this service over HTTPS using a Phase-A agent key.
+An **MCP server** exposes the Phase B tools and calls this service over HTTPS
+using a Phase-A agent key. Decision: build it in **Java as a module in this repo**
+(see §7.1) so it shares the DTOs and deploys with the rest of the platform.
 
 ```
 Claude ──tool call──▶ MCP server ──Bearer ak_live_…──▶ /agent/v1/* ──▶ DB
@@ -177,6 +185,25 @@ Claude ──tool call──▶ MCP server ──Bearer ak_live_…──▶ /ag
 create_user(email: string, sendInvite?: boolean) -> { userId, email }
 revoke_session(sessionId: string) -> { revoked: true }
 ```
+
+---
+
+## 7.1 Technology / API choices
+
+Which APIs and libraries build each layer. Chosen to stay in the existing
+Java/Spring stack wherever possible.
+
+| Layer | API / library | Notes |
+|-------|---------------|-------|
+| Agent endpoints (Phase B) | **Spring Web REST** (already present) | No new dependency. Document with the existing **springdoc/OpenAPI** annotations. |
+| MCP server (Phase D) | **MCP Java SDK** (`io.modelcontextprotocol.sdk:mcp`) or **Spring AI MCP server** starter | Keeps the MCP layer in Java, same repo, reusing service layer + DTOs. Verify exact artifact coordinates against current Spring AI docs — MCP tooling moves fast. |
+| Claude → MCP server (usage) | **Claude Desktop / Claude Code** (local MCP client) for the demo; **Claude API + MCP connector** (beta `mcp-client-2025-11-20`, requires both `mcp_servers` and a matching `mcp_toolset`) for programmatic use; **Managed Agents** if Anthropic should host the loop | Pick per deployment; all three consume the same MCP server. |
+| Backend → Claude (only if the service itself calls Claude) | **Anthropic Java SDK** (`com.anthropic:anthropic-java`), Messages API, model `claude-opus-4-8` | Zero-arg `AnthropicOkHttpClient.fromEnv()`. |
+
+> **Hard constraint:** there is **no Claude Agent SDK for Java**. A custom agent
+> *loop* in Java means using the Messages API + tool use directly, or offloading
+> the loop to Managed Agents. Building the MCP *server* in Java is unaffected —
+> only the agent loop lacks a Java SDK.
 
 ---
 
@@ -215,11 +242,11 @@ agent can't run unchecked.
 
 ## 10. Decisions needed before coding
 
-1. **Credential format & presentation** — `Authorization: Bearer ak_…` vs `X-Agent-Key`. (Bearer is simpler for MCP HTTP clients; risk of confusion with user JWTs.)
-2. **Agent identity model** — separate `AgentClient` entity (recommended) vs a `type` flag on `User`.
-3. **API keys now vs OAuth2 client-credentials later** — start with keys, define the migration path.
-4. **MCP server location** — same repo (`/mcp` module) vs separate repository.
-5. **Scope granularity** — per-resource (`users:write`) vs per-action (`users:disable`). Start coarse, refine.
+1. **Credential format & presentation** — **Resolved: `Authorization: Bearer ak_live_…`**, disambiguated from user JWTs by the `ak_` prefix (see §4). Native fit for the MCP connector and HTTP clients; no ambiguity with JWTs.
+2. **Agent identity model** — **Resolved: separate `AgentClient` entity** (not a `type` flag on `User`). Agents have no password/email-verification, a different lifecycle, and scopes rather than roles — keeping them off the `users` table keeps both auth flows clean.
+3. **API keys now vs OAuth2 client-credentials later** — **Resolved: API keys now; OAuth2 client-credentials is the documented scale-up path.** The migration is additive, not a rewrite: `AgentClient.id` → `client_id`, the hashed key → `client_secret`, `scopes` unchanged; OAuth only adds a token endpoint issuing short-lived access tokens. The Phase C permission model is reused as-is.
+4. **MCP server location** — **Resolved: same repo, as a Java module** (`/mcp`), built on the MCP Java SDK / Spring AI MCP server (see §7.1). Reuses DTOs and deploys with the platform.
+5. **Scope granularity** — **Resolved: start coarse (per-resource)**, refine to per-action only on a demonstrated least-privilege need (see §6).
 6. **Out of scope for now:** PostgreSQL/Flyway already exist; no infra work needed. No Docker/CI changes required for this layer.
 
 ---
