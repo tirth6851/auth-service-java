@@ -19,11 +19,14 @@ import java.util.UUID;
 public class RefreshTokenService {
 
     private final RefreshTokenRepository repository;
+    private final RefreshTokenReuseHandler reuseHandler;
     private final long tokenTtlMs;
 
     public RefreshTokenService(RefreshTokenRepository repository,
+                               RefreshTokenReuseHandler reuseHandler,
                                @Value("${app.refresh-token.ttl-ms:604800000}") long tokenTtlMs) {
         this.repository = repository;
+        this.reuseHandler = reuseHandler;
         this.tokenTtlMs = tokenTtlMs;
     }
 
@@ -41,6 +44,10 @@ public class RefreshTokenService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
         if (existing.isRevoked()) {
+            // A revoked token was replayed (already rotated away or logged out). Treat as theft:
+            // revoke the user's entire active token family, then reject. The revocation is
+            // committed in a separate transaction so it survives this request's 401 rollback.
+            reuseHandler.revokeFamily(existing.getUserId());
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         if (existing.isExpired()) {

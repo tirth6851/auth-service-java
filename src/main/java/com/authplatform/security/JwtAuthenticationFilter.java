@@ -36,16 +36,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(PREFIX.length());
             try {
                 Claims claims = jwtUtil.parseToken(token);
+                Long userId = Long.valueOf(claims.getSubject());
                 String email = claims.get("email", String.class);
 
-                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (SecurityContextHolder.getContext().getAuthentication() == null) {
+                    AuthenticatedUser principal = new AuthenticatedUser(userId, email);
                     UsernamePasswordAuthenticationToken auth =
-                            new UsernamePasswordAuthenticationToken(email, null, Collections.emptyList());
+                            new UsernamePasswordAuthenticationToken(principal, null, Collections.emptyList());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (Exception ignored) {
-                // invalid token, continue unauthenticated
+                // invalid or malformed token (bad signature, expired, non-numeric subject) — continue unauthenticated
             }
         }
 
