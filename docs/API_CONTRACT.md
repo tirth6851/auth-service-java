@@ -4,8 +4,8 @@
 
 Auth Platform exposes stateless HTTP endpoints for user authentication and identity. All requests require `Content-Type: application/json`. All responses are JSON.
 
-**Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`
-**Protected endpoints** (require `Authorization: Bearer <token>`): `/auth/me` and all others
+**Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`  
+**Protected endpoints** (require `Authorization: Bearer <token>`): `/auth/me`, all others
 
 ---
 
@@ -42,6 +42,7 @@ Register a new user and receive a token pair.
 |--------|---------|-------|
 | 400 | Validation failed | Missing/invalid field |
 | 409 | Email already registered | Email exists in database |
+| 429 | Too many signup attempts | Rate limit exceeded — see [Rate Limiting](#rate-limiting) |
 | 500 | An unexpected error occurred | Server error |
 
 **Example:**
@@ -180,10 +181,17 @@ curl -X POST http://localhost:8080/auth/logout \
 
 Return the authenticated user's profile from the database.
 
+**Request:**
+```
+GET /auth/me
+```
+
 **Headers:**
 ```
 Authorization: Bearer <token>
 ```
+
+**Query Parameters:** None
 
 **Auth:** Required — valid JWT Bearer token
 
@@ -198,9 +206,9 @@ Authorization: Bearer <token>
 ```
 
 **Fields:**
-- `id`: user's numeric database ID
-- `email`: user's email address (lowercased)
-- `verified`: whether the user has verified their email (always `false` — email verification not yet implemented)
+- `id`: User's numeric database ID (JWT subject)
+- `email`: User's email address (lowercased)
+- `verified`: Whether the user has verified their email (always `false` — email verification not yet implemented)
 - `createdAt`: ISO 8601 UTC timestamp of account creation
 
 **Errors:**
@@ -210,7 +218,7 @@ Authorization: Bearer <token>
 | 401 | Unauthorized | Missing, invalid, or expired token |
 | 500 | An unexpected error occurred | Server-side exception |
 
-**Example:**
+**Example curl:**
 ```bash
 curl http://localhost:8080/auth/me \
   -H "Authorization: Bearer <token>"
@@ -315,7 +323,7 @@ Validation errors include a `details` array:
 
 ## Authentication for Protected Routes
 
-For endpoints that require authentication (e.g., `GET /auth/me`), include the JWT access token in the header:
+For endpoints that require authentication (currently only `GET /auth/me`), include the JWT access token in the header:
 
 ```
 Authorization: Bearer <access-token>
@@ -358,7 +366,42 @@ The `Retry-After` header value is the number of seconds until the rate limit win
 - `app.ratelimit.login.capacity` — max attempts per window (default: `10`)
 - `app.ratelimit.login.refill-period-seconds` — window length in seconds (default: `600`)
 
-**Other endpoints** (`/auth/signup`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
+### POST /auth/signup
+
+**Policy:** 10 requests per 10 minutes per client IP address. This uses the same Bucket4j mechanism as `/auth/login` but tracks a separate bucket per IP, so exhausting one endpoint's limit does not block the other.
+
+When the limit is exceeded the server returns:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds>
+Content-Type: application/json
+```
+
+```json
+{
+  "success": false,
+  "error": "Too many signup attempts. Please try again later."
+}
+```
+
+The `Retry-After` header value is the number of seconds until the rate limit window resets. Clients should respect it before retrying.
+
+**Keying:** Requests are keyed by `remoteAddr` (the direct TCP client IP), same as `/auth/login`.
+
+**Configuration** (overridable via environment):
+- `app.ratelimit.signup.capacity` — max attempts per window (default: `10`)
+- `app.ratelimit.signup.refill-period-seconds` — window length in seconds (default: `600`)
+
+**Other endpoints** (`/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
+
+---
+
+## Data Types
+
+- `string`: JSON string (quoted)
+- `integer`: JSON number (unquoted integer)
+- `timestamp`: ISO 8601 UTC string (see `spring.jackson.serialization.write-dates-as-timestamps=false`)
 
 ---
 

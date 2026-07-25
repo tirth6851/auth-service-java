@@ -131,11 +131,11 @@ See "Latest Metrics" below for current test count. `main` branch is green.
 
 | Metric | Value |
 |--------|-------|
-| Test count | 46 (0 failures) |
+| Test count | 68 (0 failures) — verified after auth-me + rate-limit merge, on `claude/auth-portal-m1` before this merge into `main` |
 | Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `main` |
-| Open PRs | 0 |
-| Phase | 3 — refresh tokens, CORS, OpenAPI, /auth/me, rate limiting all merged |
+| Branch | `claude/auth-portal-m1` (fast-forwarded from `claude/refresh-tokens`, now merged with `main`) |
+| Open PRs | 1 (refresh tokens + hardening + rate limiting + auth-me + Auth Portal M1, combined) |
+| Phase | 3 — Open-source readiness complete; auth-me + rate limiting merged; Auth Portal M1 built |
 
 ## Recent PR History
 

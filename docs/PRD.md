@@ -23,8 +23,11 @@ Auth Platform Phase 1 is a standalone authentication service providing user sign
 
 ## Non-Goals (Phase 1)
 
+> **Status note (Phase 2):** Items marked ✅ below were out of scope for the Phase 1 MVP but have
+> since been delivered on the `claude/refresh-tokens` line. See ADR-005 and PROJECT_BACKLOG.md.
+
 - Email verification or OTP
-- Refresh token mechanism
+- ✅ Refresh token mechanism — **delivered** (rotation, reuse detection, logout; ADR-005)
 - Role-based authorization or permissions
 - API keys or service accounts
 - Multi-factor authentication

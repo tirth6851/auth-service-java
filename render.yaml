@@ -1,0 +1,67 @@
+## Render Blueprint — one-click alternative to the manual "Render: backend + Auth
+## Portal" steps in docs/DEPLOYMENT.md. Provisions the Postgres instance, the
+## Java backend (Docker), and the Next.js Auth Portal (Node) in one project.
+##
+## After deploying this blueprint in the Render dashboard (New -> Blueprint),
+## you will still need to fill in the `sync: false` env vars manually:
+##   - auth-service-java: JWT_SECRET
+##   - auth-portal:       SESSION_SECRET
+## Render will prompt for these during the blueprint's first deploy; they are
+## never stored in this file. See docs/DEPLOYMENT.md for how to generate them.
+
+databases:
+  - name: auth-platform-db
+    plan: free
+    databaseName: auth_platform
+    user: auth_platform
+
+services:
+  # 2. Backend service (repo root Dockerfile)
+  - type: web
+    name: auth-service-java
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JWT_SECRET
+        sync: false
+      # Render only exposes a postgres:// connection string, not the
+      # jdbc:postgresql:// form Spring/JDBC needs (see docs/DEPLOYMENT.md) —
+      # there's no blueprint-native way to reformat it, so fill this in
+      # manually from the auth-platform-db "Connect" tab, e.g.
+      # jdbc:postgresql://<internal-host>/<database>
+      - key: POSTGRES_JDBC_URL
+        sync: false
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: auth-platform-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: auth-platform-db
+          property: password
+
+  # 3. Portal service (web/, Node runtime)
+  - type: web
+    name: auth-portal
+    runtime: node
+    rootDir: web
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      # `host` resolves to the backend's onrender.com hostname without a
+      # scheme; Render blueprints can't concatenate strings, so if the app
+      # doesn't already assume https:// on a bare hostname, override this
+      # value in the dashboard with the full https://<backend>.onrender.com
+      # URL after first deploy (see docs/DEPLOYMENT.md).
+      - key: AUTH_API_URL
+        fromService:
+          type: web
+          name: auth-service-java
+          property: host
+      - key: SESSION_SECRET
+        sync: false

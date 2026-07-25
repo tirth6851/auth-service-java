@@ -83,7 +83,7 @@ Record of every significant architectural or engineering decision made during de
 **Decision:** `email.trim().toLowerCase()` applied in `AuthService`, not in the DTO or at the database layer.
 **Reason:** Keeps DTOs as pure data carriers; avoids coupling normalisation logic to persistence. Service layer owns business rules.
 **Alternatives considered:** DTO setter normalisation — mixing concerns. DB `LOWER()` index — adds DB-specific logic.
-**Consequences:** Emails are case-insensitively unique in practice even though the DB column has no `LOWER()` unique index. Future migration to PostgreSQL should add a functional unique index.
+**Consequences:** Emails are case-insensitively unique both in practice (normalised before every write/query) and at the DB layer — `V1__create_users_table.sql` includes a `LOWER(email)` unique index (`idx_users_email_lower`) as a defense-in-depth constraint. Lookup queries remain exact-match since input is always pre-normalised; the index is not currently referenced by any `@Query`.
 
 ---
 

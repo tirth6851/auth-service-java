@@ -268,6 +268,106 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.error").value("Too many login attempts. Please try again later."));
     }
 
+    // --- Rate limiting tests (/auth/signup, capacity=3 in test config, separate bucket from login) ---
+
+    @Test
+    void signup_underRateLimit_returns200NotRateLimited() throws Exception {
+        // 2 of 3 allowed attempts — must succeed, not 429
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupunderrate1@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupunderrate2@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void signup_returns429_whenRateLimitExceeded() throws Exception {
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/signup")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"signupratelimit%d@example.com","password":"pass1234"}
+                                """.formatted(i)))
+                    .andExpect(status().isOk());
+        }
+
+        // 4th attempt must be rate-limited
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupratelimit4@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void signup_returns429_withRetryAfterHeaderAndErrorBody() throws Exception {
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/signup")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"signupretryafter%d@example.com","password":"pass1234"}
+                                """.formatted(i)))
+                    .andExpect(status().isOk());
+        }
+
+        // 4th attempt: 429 + Retry-After header + error body
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupretryafter4@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Too many signup attempts. Please try again later."));
+    }
+
+    @Test
+    void signupRateLimit_doesNotBlockLogin_andViceVersa() throws Exception {
+        // Create a user first (uses one of the login-bucket-unrelated signup attempts)
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+
+        // Exhaust the login bucket (capacity=3) — this must not affect signup's bucket
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"separatebuckets@example.com","password":"wrongpass"}
+                                """))
+                    .andExpect(status().isUnauthorized());
+        }
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets@example.com","password":"wrongpass"}
+                            """))
+                .andExpect(status().isTooManyRequests());
+
+        // Signup should still work (its bucket is independent) — only 1 of 3 signup
+        // attempts consumed above, so this succeeds without hitting signup's limit.
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets2@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+    }
+
     // --- Security header tests ---
 
     @Test
@@ -499,5 +599,94 @@ class AuthControllerIntegrationTest {
                     """)
                 .header("Origin", "http://localhost:3000"))
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+    }
+
+    // --- Refresh-token reuse detection ---
+
+    @Test
+    void refresh_reuseOfRotatedToken_revokesEntireTokenFamily() throws Exception {
+        // One user, three active sessions (three "devices"): signup + two more logins.
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"reuse@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String tokenA = JsonPath.read(signupResponse, "$.refreshToken");
+        String tokenC = loginAndGetRefreshToken("reuse@example.com", "pass1234"); // device 2
+        String tokenD = loginAndGetRefreshToken("reuse@example.com", "pass1234"); // device 3
+
+        // First refresh rotates A -> B; A becomes revoked. Active family is now {B, C, D}.
+        String refreshResponse = mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + tokenA + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String tokenB = JsonPath.read(refreshResponse, "$.refreshToken");
+
+        // Replaying the rotated token A is detected as reuse -> 401.
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + tokenA + "\"}"))
+                .andExpect(status().isUnauthorized());
+
+        // Reuse must revoke the ENTIRE active family, across all devices — B, C and D all die.
+        for (String token : new String[]{tokenB, tokenC, tokenD}) {
+            mockMvc.perform(post("/auth/refresh")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"refreshToken\":\"" + token + "\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    private String loginAndGetRefreshToken(String email, String password) throws Exception {
+        String response = mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(response, "$.refreshToken");
+    }
+
+    // --- Case-insensitive email uniqueness (app-level normalization) ---
+
+    @Test
+    void signup_returns409_forCaseVariantEmail() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"CaseTest@Example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk());
+        // Same address, different case -> normalized to the same value -> duplicate.
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"casetest@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isConflict());
+    }
+
+    // --- Logout idempotency ---
+
+    @Test
+    void logout_isIdempotent_whenCalledTwice() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"idemp@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+        // Revoking an already-revoked token is a no-op -> still 204.
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
     }
 }

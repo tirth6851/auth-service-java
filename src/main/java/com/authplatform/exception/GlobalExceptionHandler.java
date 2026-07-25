@@ -1,5 +1,6 @@
 package com.authplatform.exception;
 
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -38,11 +39,20 @@ public class GlobalExceptionHandler {
         return ErrorResponse.of("Resource not found");
     }
 
+    // A concurrent refresh of the same token loses the optimistic-lock race. The token is no
+    // longer valid for this caller, so surface it as 401 (not a 500) — same shape as other
+    // invalid-token responses, and non-revealing.
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ErrorResponse handleOptimisticLock(OptimisticLockingFailureException ex) {
+        return ErrorResponse.of("Invalid credentials");
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
-                .body(ErrorResponse.of("Too many login attempts. Please try again later."));
+                .body(ErrorResponse.of(ex.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)
