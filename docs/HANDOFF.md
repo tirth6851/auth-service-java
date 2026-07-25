@@ -41,7 +41,6 @@ Several prior sessions had left valuable, tested work stranded in unmerged branc
 - ⚠️ **`/auth/signup` not yet rate-limited** — only `/auth/login` is protected
 - ⚠️ **Rate limiting is per-instance, not shared** — a horizontally-scaled deployment would need a Redis-backed Bucket4j extension for shared-state enforcement
 - ⚠️ **Access token TTL still 1 hour in default config** — production should set `app.jwt.expiration-ms=900000` (15 min)
-- ⚠️ **`LOWER(email)` functional index** not yet added to the PostgreSQL migration
 - ⚠️ **PostgreSQL Testcontainers** not yet in place — `V2` migration is untested against real Postgres locally
 
 ---
@@ -71,7 +70,6 @@ mvn clean verify
 ### Priority 2: Production hardening (Medium Priority backlog)
 - Set `app.jwt.expiration-ms=900000` (15 min) in prod env
 - Configure `app.cors.allowed-origins` to the actual frontend domain before going live
-- Add `LOWER(email)` functional index to PostgreSQL (`V3` Flyway migration)
 
 ### Priority 3: Next Phase 2 feature candidates (see `PROJECT_BACKLOG.md` — Medium Priority)
 - Rate limiting on `/auth/signup`

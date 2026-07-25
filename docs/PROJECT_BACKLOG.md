@@ -23,7 +23,7 @@ _(Nothing currently queued — see Medium Priority below.)_
 - `application-prod.properties` with env-driven DB config
 - `V1__create_users_table.sql` Flyway migration
 - H2 kept for local dev; prod uses PostgreSQL
-- ⚠ Remaining: `LOWER(email)` functional unique index not yet added
+- `LOWER(email)` functional unique index (`idx_users_email_lower`) included in `V1__create_users_table.sql`
 
 ### ✅ Docker / Docker Compose (commit bb6df9e + 0eeeef4)
 - Multi-stage `Dockerfile` (Maven build → JRE Alpine, non-root user)
@@ -79,9 +79,6 @@ _(Nothing currently queued — see Medium Priority below.)_
 - On logout or password change, add JWT `jti` (JWT ID) to a short-TTL denylist (Redis or DB)
 - `JwtAuthenticationFilter` checks denylist before accepting token
 - Required for security-sensitive deployments
-
-### `LOWER(email)` Functional Index
-- Add a case-insensitive unique index on `users.email` in PostgreSQL (carried over from the PostgreSQL Migration item)
 
 ### Concurrent Refresh Race Condition
 - Documented limitation in ADR-005: concurrent refresh with the same token under READ_COMMITTED isolation can both succeed
