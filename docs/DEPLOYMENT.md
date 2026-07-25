@@ -131,7 +131,7 @@ curl -X POST http://localhost:8080/auth/signup \
 
 ## Deploying to Cloud Platforms
 
-### Railway / Render / Fly.io (general pattern)
+### Render / Fly.io (general pattern)
 
 These platforms build from your `Dockerfile` and inject environment variables via their dashboard.
 
@@ -139,6 +139,50 @@ These platforms build from your `Dockerfile` and inject environment variables vi
 2. Set `SPRING_PROFILES_ACTIVE=prod`
 3. The platform builds the image and deploys; Flyway migrations run on startup
 4. Health check path: `/actuator/health`
+
+### Railway: backend + Auth Portal (two services)
+
+Once the [Auth Portal](../web/README.md) exists, a full deployment is **two separate Railway
+services in one project** — the Java backend and the Next.js BFF — plus a managed Postgres
+plugin. They do not share a runtime; the portal talks to the backend over the public internet
+exactly like any other client.
+
+**1. Backend service** (`auth-service-java`, builds from the repo root `Dockerfile`):
+
+- Add the **Postgres plugin** to the Railway project first. It exposes `PGHOST`, `PGPORT`,
+  `PGDATABASE`, `PGUSER`, `PGPASSWORD` (and a combined `DATABASE_URL`) as reference variables.
+- Set these on the backend service, using Railway's `${{ServiceName.VAR}}` reference syntax so
+  they stay in sync with the plugin instead of being copy-pasted:
+  ```
+  SPRING_PROFILES_ACTIVE=prod
+  JWT_SECRET=<openssl rand -base64 48>
+  POSTGRES_JDBC_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
+  POSTGRES_USER=${{Postgres.PGUSER}}
+  POSTGRES_PASSWORD=${{Postgres.PGPASSWORD}}
+  ```
+  (`POSTGRES_JDBC_URL` needs the `jdbc:postgresql://` form — Railway's own `DATABASE_URL` uses
+  the `postgres://` scheme and isn't a drop-in substitute.)
+- Health check path: `/actuator/health`. Flyway migrations run automatically on startup.
+- Note the service's public Railway URL (Settings → Networking → Generate Domain) — the portal
+  needs it next.
+
+**2. Portal service** (`web/`, builds from the `web/` subdirectory — set Root Directory to `web`
+in the service's Settings):
+
+- Environment variables:
+  ```
+  AUTH_API_URL=https://<backend-service>.up.railway.app
+  SESSION_SECRET=<node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+  ```
+- Railway's Node buildpack detects Next.js automatically (`npm run build` / `npm run start`); no
+  Dockerfile is needed for this service unless you want one.
+- Because the browser only ever talks to the portal (same-origin BFF), the **backend's
+  `app.cors.allowed-origins` is irrelevant to the portal** — that setting only matters if some
+  *other*, non-BFF client calls the API directly from a browser. The portal's own outbound calls
+  to `AUTH_API_URL` are server-to-server and aren't subject to CORS at all.
+- Generate a domain for this service too; that's the URL end users visit.
+
+**Deploy order:** backend first (so you have its URL for `AUTH_API_URL`), then the portal.
 
 ### AWS ECS / Google Cloud Run
 
@@ -168,6 +212,13 @@ Before exposing to any real traffic:
 - [ ] `.env` is in `.gitignore` and never committed
 - [ ] Flyway migrations applied cleanly (`status: UP` on health check)
 - [ ] Smoke test: signup → login → refresh → logout flow works end-to-end
+
+If deploying the [Auth Portal](../web/README.md) alongside the backend:
+
+- [ ] `SESSION_SECRET` is a random 32+ byte value, distinct per environment
+- [ ] `AUTH_API_URL` points at the backend's real deployed URL (not `localhost`)
+- [ ] Portal is served over HTTPS — the session cookie's `secure` flag is enabled automatically
+      when `NODE_ENV=production`, which drops the cookie silently over plain HTTP
 
 ---
 
