@@ -47,8 +47,8 @@ public class AuthService {
         return new AuthResponse(accessToken, refreshToken);
     }
 
-    public MeResponse getCurrentUser(String email) {
-        User user = userRepository.findByEmail(email)
+    public MeResponse getCurrentUser(Long userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized"));
         return new MeResponse(user.getId(), user.getEmail(), user.isVerified(), user.getCreatedAt());
     }

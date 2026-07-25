@@ -26,6 +26,12 @@ public class RefreshToken {
     @Column
     private Instant revokedAt;
 
+    // Optimistic lock guard: two concurrent refreshes of the same token cannot both rotate it;
+    // the loser fails with an optimistic-lock exception (mapped to 401) instead of both succeeding.
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = Instant.now();
@@ -54,6 +60,9 @@ public class RefreshToken {
 
     public Instant getRevokedAt() { return revokedAt; }
     public void setRevokedAt(Instant revokedAt) { this.revokedAt = revokedAt; }
+
+    /** Optimistic-lock version, managed by Hibernate. Exposed for observability/testing; no setter. */
+    public Long getVersion() { return version; }
 
     public boolean isExpired() {
         return Instant.now().isAfter(expiresAt);
