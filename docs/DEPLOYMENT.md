@@ -147,6 +147,15 @@ Services in one project** — the Java backend and the Next.js BFF — plus a ma
 Postgres instance. They do not share a runtime; the portal talks to the backend over the public
 internet exactly like any other client.
 
+> **One-click alternative:** the repo root `render.yaml` is a
+> [Render Blueprint](https://render.com/docs/blueprint-spec) that provisions all three resources
+> (Postgres, backend, portal) from Render's dashboard (New → Blueprint) in one pass, matching the
+> manual steps below. It still prompts for the secrets that must never be committed
+> (`JWT_SECRET`, `SESSION_SECRET`), and `POSTGRES_JDBC_URL` / `AUTH_API_URL` need a one-time manual
+> check after first deploy since Render can't auto-format a JDBC URL or concatenate a URL scheme
+> onto a hostname in a blueprint — see the comments in `render.yaml` for details. The manual steps
+> below still apply if you'd rather configure each service by hand.
+
 **1. Postgres instance:**
 
 - Create a **Render Postgres** database first (Dashboard → New → PostgreSQL). Render provisions
