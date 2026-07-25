@@ -140,49 +140,59 @@ These platforms build from your `Dockerfile` and inject environment variables vi
 3. The platform builds the image and deploys; Flyway migrations run on startup
 4. Health check path: `/actuator/health`
 
-### Railway: backend + Auth Portal (two services)
+### Render: backend + Auth Portal (two services)
 
-Once the [Auth Portal](../web/README.md) exists, a full deployment is **two separate Railway
-services in one project** — the Java backend and the Next.js BFF — plus a managed Postgres
-plugin. They do not share a runtime; the portal talks to the backend over the public internet
-exactly like any other client.
+Once the [Auth Portal](../web/README.md) exists, a full deployment is **two separate Render Web
+Services in one project** — the Java backend and the Next.js BFF — plus a managed Render
+Postgres instance. They do not share a runtime; the portal talks to the backend over the public
+internet exactly like any other client.
 
-**1. Backend service** (`auth-service-java`, builds from the repo root `Dockerfile`):
+**1. Postgres instance:**
 
-- Add the **Postgres plugin** to the Railway project first. It exposes `PGHOST`, `PGPORT`,
-  `PGDATABASE`, `PGUSER`, `PGPASSWORD` (and a combined `DATABASE_URL`) as reference variables.
-- Set these on the backend service, using Railway's `${{ServiceName.VAR}}` reference syntax so
-  they stay in sync with the plugin instead of being copy-pasted:
+- Create a **Render Postgres** database first (Dashboard → New → PostgreSQL). Render provisions
+  it with an **Internal Database URL** (for services in the same region) and an **External
+  Database URL**; use the internal one from the backend service to avoid egress and latency.
+- The internal URL is `postgres://<user>:<password>@<host>/<db>` — Spring/JDBC needs the
+  `jdbc:postgresql://` form, so split it into the three vars below rather than pasting the URL
+  directly into `POSTGRES_JDBC_URL`.
+
+**2. Backend service** (`auth-service-java`, Web Service, builds from the repo root
+`Dockerfile`):
+
+- Set Root Directory to the repo root; Render detects and builds the `Dockerfile` automatically.
+- Environment variables (Dashboard → Environment; pull the DB values from the Postgres
+  instance's "Connect" tab):
   ```
   SPRING_PROFILES_ACTIVE=prod
   JWT_SECRET=<openssl rand -base64 48>
-  POSTGRES_JDBC_URL=jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}
-  POSTGRES_USER=${{Postgres.PGUSER}}
-  POSTGRES_PASSWORD=${{Postgres.PGPASSWORD}}
+  POSTGRES_JDBC_URL=jdbc:postgresql://<internal-host>/<database>
+  POSTGRES_USER=<user>
+  POSTGRES_PASSWORD=<password>
   ```
-  (`POSTGRES_JDBC_URL` needs the `jdbc:postgresql://` form — Railway's own `DATABASE_URL` uses
-  the `postgres://` scheme and isn't a drop-in substitute.)
-- Health check path: `/actuator/health`. Flyway migrations run automatically on startup.
-- Note the service's public Railway URL (Settings → Networking → Generate Domain) — the portal
-  needs it next.
+- Health check path: `/actuator/health` (set under Settings → Health Check Path so Render's
+  zero-downtime deploys wait for it). Flyway migrations run automatically on startup.
+- Note the service's public `onrender.com` URL — the portal needs it next.
+- Render's free-tier Web Services spin down after 15 min idle and cold-start on the next
+  request; the first login after idle will be slow. Fine for a demo, not for anything
+  latency-sensitive without a paid plan.
 
-**2. Portal service** (`web/`, builds from the `web/` subdirectory — set Root Directory to `web`
-in the service's Settings):
+**3. Portal service** (`web/`, Web Service, Node runtime — set Root Directory to `web` in the
+service's Settings):
 
+- Build command: `npm install && npm run build`. Start command: `npm run start`.
 - Environment variables:
   ```
-  AUTH_API_URL=https://<backend-service>.up.railway.app
+  AUTH_API_URL=https://<backend-service>.onrender.com
   SESSION_SECRET=<node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
   ```
-- Railway's Node buildpack detects Next.js automatically (`npm run build` / `npm run start`); no
-  Dockerfile is needed for this service unless you want one.
 - Because the browser only ever talks to the portal (same-origin BFF), the **backend's
   `app.cors.allowed-origins` is irrelevant to the portal** — that setting only matters if some
   *other*, non-BFF client calls the API directly from a browser. The portal's own outbound calls
   to `AUTH_API_URL` are server-to-server and aren't subject to CORS at all.
-- Generate a domain for this service too; that's the URL end users visit.
+- Render auto-assigns a public `onrender.com` URL for this service; that's what end users visit.
 
-**Deploy order:** backend first (so you have its URL for `AUTH_API_URL`), then the portal.
+**Deploy order:** Postgres instance first, then the backend (so you have its URL for
+`AUTH_API_URL`), then the portal.
 
 ### AWS ECS / Google Cloud Run
 
