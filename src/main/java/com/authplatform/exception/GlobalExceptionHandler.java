@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex) {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
-                .body(ErrorResponse.of("Too many login attempts. Please try again later."));
+                .body(ErrorResponse.of(ex.getMessage()));
     }
 
     @ExceptionHandler(ResponseStatusException.class)

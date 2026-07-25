@@ -77,3 +77,14 @@ Alternative `Refill.greedy` would have allowed 1 token per minute continuously, 
 | Spring Security's built-in rate limiting | Not available in Spring Security 6.x as a first-class feature |
 | API gateway (nginx limit_req) | Out of scope for application-layer implementation; no gateway in this stack |
 | Servlet Filter | Exceptions don't flow to `@RestControllerAdvice`; would require hand-written JSON error body |
+
+---
+
+## Addendum (2026-07-25) — Extended to /auth/signup
+
+The mechanism decided above was extended to `POST /auth/signup` using the same Bucket4j/`HandlerInterceptor` pattern, rather than opening a separate ADR, since no new architectural decision was required:
+
+- `LoginRateLimitInterceptor` was generalized into a reusable `RateLimitInterceptor` (capacity, refill period, and error message are constructor parameters instead of hardcoded).
+- `WebConfig` now constructs **two independent instances** — one per endpoint — each with its own bucket map, so exhausting the login limit does not consume or block the signup limit (and vice versa).
+- Same policy: 10 attempts / 10 minutes / IP, keyed by `remoteAddr`.
+- New config keys: `app.ratelimit.signup.capacity`, `app.ratelimit.signup.refill-period-seconds` (defaults: 10, 600).

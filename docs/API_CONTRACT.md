@@ -42,6 +42,7 @@ Register a new user and receive a token pair.
 |--------|---------|-------|
 | 400 | Validation failed | Missing/invalid field |
 | 409 | Email already registered | Email exists in database |
+| 429 | Too many signup attempts | Rate limit exceeded — see [Rate Limiting](#rate-limiting) |
 | 500 | An unexpected error occurred | Server error |
 
 **Example:**
@@ -365,7 +366,34 @@ The `Retry-After` header value is the number of seconds until the rate limit win
 - `app.ratelimit.login.capacity` — max attempts per window (default: `10`)
 - `app.ratelimit.login.refill-period-seconds` — window length in seconds (default: `600`)
 
-**Other endpoints** (`/auth/signup`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
+### POST /auth/signup
+
+**Policy:** 10 requests per 10 minutes per client IP address. This uses the same Bucket4j mechanism as `/auth/login` but tracks a separate bucket per IP, so exhausting one endpoint's limit does not block the other.
+
+When the limit is exceeded the server returns:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds>
+Content-Type: application/json
+```
+
+```json
+{
+  "success": false,
+  "error": "Too many signup attempts. Please try again later."
+}
+```
+
+The `Retry-After` header value is the number of seconds until the rate limit window resets. Clients should respect it before retrying.
+
+**Keying:** Requests are keyed by `remoteAddr` (the direct TCP client IP), same as `/auth/login`.
+
+**Configuration** (overridable via environment):
+- `app.ratelimit.signup.capacity` — max attempts per window (default: `10`)
+- `app.ratelimit.signup.refill-period-seconds` — window length in seconds (default: `600`)
+
+**Other endpoints** (`/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
 
 ---
 
