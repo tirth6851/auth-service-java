@@ -48,6 +48,13 @@ public class GlobalExceptionHandler {
         return ErrorResponse.of("Invalid credentials");
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(ErrorResponse.of("Too many login attempts. Please try again later."));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatus(ResponseStatusException ex) {
         String message = ex.getReason() != null ? ex.getReason() : "Request failed";

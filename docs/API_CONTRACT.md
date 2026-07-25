@@ -2,10 +2,10 @@
 
 ## Overview
 
-Auth Platform exposes stateless HTTP endpoints for user authentication. All requests require `Content-Type: application/json`. All responses are JSON.
+Auth Platform exposes stateless HTTP endpoints for user authentication and identity. All requests require `Content-Type: application/json`. All responses are JSON.
 
 **Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`  
-**Protected endpoints** (require `Authorization: Bearer <token>`): all others
+**Protected endpoints** (require `Authorization: Bearer <token>`): `/auth/me`, all others
 
 ---
 
@@ -175,6 +175,55 @@ curl -X POST http://localhost:8080/auth/logout \
 
 ---
 
+### GET /auth/me
+
+Return the authenticated user's profile from the database.
+
+**Request:**
+```
+GET /auth/me
+```
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Query Parameters:** None
+
+**Auth:** Required — valid JWT Bearer token
+
+**Response (200 OK):**
+```json
+{
+  "id": 42,
+  "email": "user@example.com",
+  "verified": false,
+  "createdAt": "2024-06-19T12:00:00Z"
+}
+```
+
+**Fields:**
+- `id`: User's numeric database ID (JWT subject)
+- `email`: User's email address (lowercased)
+- `verified`: Whether the user has verified their email (always `false` — email verification not yet implemented)
+- `createdAt`: ISO 8601 UTC timestamp of account creation
+
+**Errors:**
+
+| Status | Error | Cause |
+|--------|-------|-------|
+| 401 | Unauthorized | Missing, invalid, or expired token |
+| 500 | An unexpected error occurred | Server-side exception |
+
+**Example curl:**
+```bash
+curl http://localhost:8080/auth/me \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
 ### GET /actuator/health
 
 Health check endpoint for load balancers, monitoring, and orchestration systems.
@@ -272,6 +321,8 @@ Validation errors include a `details` array:
 
 ## Authentication for Protected Routes
 
+For endpoints that require authentication (currently only `GET /auth/me`), include the JWT access token in the header:
+
 ```
 Authorization: Bearer <access-token>
 ```
@@ -281,6 +332,47 @@ Authorization: Bearer <access-token>
 | Valid token | 200 (or endpoint's normal response) |
 | Missing header | 401 `{"success":false,"error":"Unauthorized"}` |
 | Invalid / expired token | 401 `{"success":false,"error":"Unauthorized"}` |
+
+---
+
+## Rate Limiting
+
+### POST /auth/login
+
+**Policy:** 10 requests per 10 minutes per client IP address.
+
+When the limit is exceeded the server returns:
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds>
+Content-Type: application/json
+```
+
+```json
+{
+  "success": false,
+  "error": "Too many login attempts. Please try again later."
+}
+```
+
+The `Retry-After` header value is the number of seconds until the rate limit window resets. Clients should respect it before retrying.
+
+**Keying:** Requests are keyed by `remoteAddr` (the direct TCP client IP). If the service runs behind a trusted reverse proxy, configure `server.forward-headers-strategy=framework` so the real client IP is extracted from `X-Forwarded-For`.
+
+**Configuration** (overridable via environment):
+- `app.ratelimit.login.capacity` — max attempts per window (default: `10`)
+- `app.ratelimit.login.refill-period-seconds` — window length in seconds (default: `600`)
+
+**Other endpoints** (`/auth/signup`, `/auth/me`, `/actuator/health`) are not rate-limited.
+
+---
+
+## Data Types
+
+- `string`: JSON string (quoted)
+- `integer`: JSON number (unquoted integer)
+- `timestamp`: ISO 8601 UTC string (see `spring.jackson.serialization.write-dates-as-timestamps=false`)
 
 ---
 
@@ -299,12 +391,6 @@ Override per environment:
 # application-prod.properties
 app.cors.allowed-origins=https://your-frontend-domain.com
 ```
-
----
-
-## Rate Limiting
-
-`POST /auth/login` — 10 attempts per 10 minutes per IP address. Returns 429 Too Many Requests with a `Retry-After` header when exceeded. (Implemented on the `claude/rate-limit-login` branch, pending merge.)
 
 ---
 

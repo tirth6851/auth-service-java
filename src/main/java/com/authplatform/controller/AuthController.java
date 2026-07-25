@@ -3,9 +3,11 @@ package com.authplatform.controller;
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
 import com.authplatform.dto.LogoutRequest;
+import com.authplatform.dto.MeResponse;
 import com.authplatform.dto.RefreshRequest;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.exception.ErrorResponse;
+import com.authplatform.security.AuthenticatedUser;
 import com.authplatform.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -15,6 +17,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,7 +56,8 @@ public class AuthController {
     @Operation(
             summary = "Authenticate an existing user",
             description = "Validates credentials and returns a JWT access token plus a refresh token. " +
-                    "Returns 401 for both unknown email and wrong password (user enumeration protection)."
+                    "Returns 401 for both unknown email and wrong password (user enumeration protection). " +
+                    "Rate limited per IP."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Authentication successful — token pair returned",
@@ -61,6 +65,8 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "Validation failed (blank field or invalid email format)",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "429", description = "Too many login attempts from this IP — see Retry-After header",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/login")
@@ -104,5 +110,21 @@ public class AuthController {
     public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
         authService.logout(request.getRefreshToken());
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Get the current authenticated user",
+            description = "Returns the id and email of the user identified by the bearer access token."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Current user returned",
+                    content = @Content(schema = @Schema(implementation = MeResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing, invalid, or expired access token",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/me")
+    public ResponseEntity<MeResponse> me(Authentication authentication) {
+        AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.getCurrentUser(principal.userId()));
     }
 }

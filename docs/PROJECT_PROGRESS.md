@@ -98,15 +98,38 @@ All acceptance criteria met. 23 tests pass. `main` branch is green.
 - **`AuthControllerIntegrationTest`**: +3 tests: `responses_includeXFrameOptionsSameOrigin`, `openApiDocs_returns200_withoutAuth`, `swaggerUi_isReachable`
 - **40 tests — all passing** (includes security hardening + Swagger tests)
 
+### Milestone 7 — GET /auth/me (2026-06-19)
+**Branch**: `claude/auth-me` (pending CI + PR)
+- `GET /auth/me` — protected endpoint returning id, email, verified, createdAt
+- `MeResponse` DTO (record) — no entity exposure
+- `AuthService.getCurrentUser(email)` — DB lookup; 401 if user not found
+- `SecurityConfig` — `/auth/**` wildcard → explicit `/auth/signup`, `/auth/login` (closes security gap)
+- `application.properties` — ISO 8601 date serialization enabled
+- `AuthControllerIntegrationTest` — 3 new tests (valid token → 200, no token → 401, invalid token → 401)
+- `docs/API_CONTRACT.md` — GET /auth/me endpoint spec added
+
+### Milestone 8 — Rate Limiting on /auth/login (2026-06-19)
+**Branch**: `claude/rate-limit-login` (off `main`)
+- `pom.xml` — added `com.bucket4j:bucket4j-core:8.10.1`
+- `LoginRateLimitInterceptor` — HandlerInterceptor; per-IP token bucket (10/10min); throws `RateLimitExceededException`
+- `WebConfig` — registers interceptor for `/auth/login` only
+- `RateLimitExceededException` — carries `retryAfterSeconds` for header
+- `GlobalExceptionHandler` — `handleRateLimit()` returns 429 + `Retry-After` header + `ErrorResponse`
+- `application.properties` — rate limit defaults configurable via env (`app.ratelimit.login.*`)
+- `test/application.properties` — capacity overridden to 3 for fast integration tests
+- `AuthControllerIntegrationTest` — 3 new tests (under limit → 401, over limit → 429, 429 header + body)
+- `docs/API_CONTRACT.md` — rate limiting section updated with policy, headers, config
+- `docs/ADR/005-rate-limiting-strategy.md` — design rationale (library, keying, placement, refill strategy)
+
 ## Latest Metrics (2026-06-19)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 40 (0 failures) |
+| Test count | 68 (0 failures) — verified after auth-me + rate-limit merge |
 | Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `claude/refresh-tokens` |
-| Open PRs | 1 (refresh tokens + open-source readiness sprint) |
-| Phase | 3 — Open-source readiness complete |
+| Branch | `claude/refresh-tokens` (merged in `claude/rate-limit-login` + `claude/auth-me`) |
+| Open PRs | 1 (refresh tokens + hardening + rate limiting + auth-me, combined) |
+| Phase | 3 — Open-source readiness complete; auth-me + rate limiting merged |
 
 ## Recent PR History
 
