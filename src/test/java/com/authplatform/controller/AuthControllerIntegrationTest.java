@@ -268,6 +268,106 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.error").value("Too many login attempts. Please try again later."));
     }
 
+    // --- Rate limiting tests (/auth/signup, capacity=3 in test config, separate bucket from login) ---
+
+    @Test
+    void signup_underRateLimit_returns200NotRateLimited() throws Exception {
+        // 2 of 3 allowed attempts — must succeed, not 429
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupunderrate1@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupunderrate2@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void signup_returns429_whenRateLimitExceeded() throws Exception {
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/signup")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"signupratelimit%d@example.com","password":"pass1234"}
+                                """.formatted(i)))
+                    .andExpect(status().isOk());
+        }
+
+        // 4th attempt must be rate-limited
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupratelimit4@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void signup_returns429_withRetryAfterHeaderAndErrorBody() throws Exception {
+        // Exhaust the bucket (capacity=3)
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/signup")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"signupretryafter%d@example.com","password":"pass1234"}
+                                """.formatted(i)))
+                    .andExpect(status().isOk());
+        }
+
+        // 4th attempt: 429 + Retry-After header + error body
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"signupretryafter4@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error").value("Too many signup attempts. Please try again later."));
+    }
+
+    @Test
+    void signupRateLimit_doesNotBlockLogin_andViceVersa() throws Exception {
+        // Create a user first (uses one of the login-bucket-unrelated signup attempts)
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+
+        // Exhaust the login bucket (capacity=3) — this must not affect signup's bucket
+        for (int i = 0; i < 3; i++) {
+            mockMvc.perform(post("/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {"email":"separatebuckets@example.com","password":"wrongpass"}
+                                """))
+                    .andExpect(status().isUnauthorized());
+        }
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets@example.com","password":"wrongpass"}
+                            """))
+                .andExpect(status().isTooManyRequests());
+
+        // Signup should still work (its bucket is independent) — only 1 of 3 signup
+        // attempts consumed above, so this succeeds without hitting signup's limit.
+        mockMvc.perform(post("/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {"email":"separatebuckets2@example.com","password":"pass1234"}
+                            """))
+                .andExpect(status().isOk());
+    }
+
     // --- Security header tests ---
 
     @Test

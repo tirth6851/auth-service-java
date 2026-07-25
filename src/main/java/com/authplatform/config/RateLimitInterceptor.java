@@ -7,27 +7,31 @@ import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.Refill;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-@Component
-public class LoginRateLimitInterceptor implements HandlerInterceptor {
+/**
+ * Generic IP-keyed Bucket4j rate limiter for HTTP endpoints. Not a Spring
+ * {@code @Component} because multiple independent instances (one per protected
+ * endpoint, each with its own bucket map and limits) are wired up as separate
+ * beans in {@link WebConfig} so that exhausting one endpoint's limit does not
+ * affect another endpoint.
+ */
+public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final int capacity;
     private final int refillPeriodSeconds;
+    private final String errorMessage;
     // Instance field (not static) so DirtiesContext resets it between tests
     private final ConcurrentHashMap<String, Bucket> buckets = new ConcurrentHashMap<>();
 
-    public LoginRateLimitInterceptor(
-            @Value("${app.ratelimit.login.capacity:10}") int capacity,
-            @Value("${app.ratelimit.login.refill-period-seconds:600}") int refillPeriodSeconds) {
+    public RateLimitInterceptor(int capacity, int refillPeriodSeconds, String errorMessage) {
         this.capacity = capacity;
         this.refillPeriodSeconds = refillPeriodSeconds;
+        this.errorMessage = errorMessage;
     }
 
     @Override
@@ -38,7 +42,7 @@ public class LoginRateLimitInterceptor implements HandlerInterceptor {
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (!probe.isConsumed()) {
             long retryAfterSeconds = TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill()) + 1;
-            throw new RateLimitExceededException(retryAfterSeconds);
+            throw new RateLimitExceededException(errorMessage, retryAfterSeconds);
         }
         return true;
     }

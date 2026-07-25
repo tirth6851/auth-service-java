@@ -60,15 +60,16 @@ _(Nothing currently queued — see Medium Priority below.)_
 - 429 Too Many Requests + `Retry-After` header on breach
 - Keyed by `remoteAddr` (not XFF — attacker-controlled)
 - ADR-007 documents design choices (renumbered from ADR-005 on the source branch to avoid collision with the refresh-token ADR-005)
-- ⚠ Remaining: `/auth/signup` not yet rate-limited
+
+### ✅ Rate Limiting on /auth/signup
+- Same Bucket4j mechanism as `/auth/login` (generalized `RateLimitInterceptor`, reused by both endpoints)
+- 10 attempts / 10 min / IP; 429 + `Retry-After` header on breach
+- Separate bucket-per-IP from `/auth/login` so exhausting one endpoint's limit does not block the other
+- Config: `app.ratelimit.signup.capacity`, `app.ratelimit.signup.refill-period-seconds`
 
 ---
 
 ## Medium Priority
-
-### Rate Limiting — `/auth/signup`
-- Currently only `/auth/login` is rate-limited; signup should also be protected
-- Same Bucket4j pattern, separate interceptor or shared config
 
 ### Audit Logging
 - Structured log on every auth event: signup, login success, login failure, token rejection
