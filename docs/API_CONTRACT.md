@@ -4,8 +4,8 @@
 
 Auth Platform exposes stateless HTTP endpoints for user authentication and identity. All requests require `Content-Type: application/json`. All responses are JSON.
 
-**Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`
-**Protected endpoints** (require `Authorization: Bearer <token>`): `/auth/me` and all others
+**Public endpoints** (no token required): `/auth/signup`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/actuator/health`  
+**Protected endpoints** (require `Authorization: Bearer <token>`): `/auth/me`, all others
 
 ---
 
@@ -181,10 +181,17 @@ curl -X POST http://localhost:8080/auth/logout \
 
 Return the authenticated user's profile from the database.
 
+**Request:**
+```
+GET /auth/me
+```
+
 **Headers:**
 ```
 Authorization: Bearer <token>
 ```
+
+**Query Parameters:** None
 
 **Auth:** Required — valid JWT Bearer token
 
@@ -199,9 +206,9 @@ Authorization: Bearer <token>
 ```
 
 **Fields:**
-- `id`: user's numeric database ID
-- `email`: user's email address (lowercased)
-- `verified`: whether the user has verified their email (always `false` — email verification not yet implemented)
+- `id`: User's numeric database ID (JWT subject)
+- `email`: User's email address (lowercased)
+- `verified`: Whether the user has verified their email (always `false` — email verification not yet implemented)
 - `createdAt`: ISO 8601 UTC timestamp of account creation
 
 **Errors:**
@@ -211,7 +218,7 @@ Authorization: Bearer <token>
 | 401 | Unauthorized | Missing, invalid, or expired token |
 | 500 | An unexpected error occurred | Server-side exception |
 
-**Example:**
+**Example curl:**
 ```bash
 curl http://localhost:8080/auth/me \
   -H "Authorization: Bearer <token>"
@@ -316,7 +323,7 @@ Validation errors include a `details` array:
 
 ## Authentication for Protected Routes
 
-For endpoints that require authentication (e.g., `GET /auth/me`), include the JWT access token in the header:
+For endpoints that require authentication (currently only `GET /auth/me`), include the JWT access token in the header:
 
 ```
 Authorization: Bearer <access-token>
@@ -387,6 +394,14 @@ The `Retry-After` header value is the number of seconds until the rate limit win
 - `app.ratelimit.signup.refill-period-seconds` — window length in seconds (default: `600`)
 
 **Other endpoints** (`/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
+
+---
+
+## Data Types
+
+- `string`: JSON string (quoted)
+- `integer`: JSON number (unquoted integer)
+- `timestamp`: ISO 8601 UTC string (see `spring.jackson.serialization.write-dates-as-timestamps=false`)
 
 ---
 

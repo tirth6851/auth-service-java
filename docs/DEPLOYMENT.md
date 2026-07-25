@@ -131,7 +131,7 @@ curl -X POST http://localhost:8080/auth/signup \
 
 ## Deploying to Cloud Platforms
 
-### Railway / Render / Fly.io (general pattern)
+### Render / Fly.io (general pattern)
 
 These platforms build from your `Dockerfile` and inject environment variables via their dashboard.
 
@@ -139,6 +139,60 @@ These platforms build from your `Dockerfile` and inject environment variables vi
 2. Set `SPRING_PROFILES_ACTIVE=prod`
 3. The platform builds the image and deploys; Flyway migrations run on startup
 4. Health check path: `/actuator/health`
+
+### Render: backend + Auth Portal (two services)
+
+Once the [Auth Portal](../web/README.md) exists, a full deployment is **two separate Render Web
+Services in one project** — the Java backend and the Next.js BFF — plus a managed Render
+Postgres instance. They do not share a runtime; the portal talks to the backend over the public
+internet exactly like any other client.
+
+**1. Postgres instance:**
+
+- Create a **Render Postgres** database first (Dashboard → New → PostgreSQL). Render provisions
+  it with an **Internal Database URL** (for services in the same region) and an **External
+  Database URL**; use the internal one from the backend service to avoid egress and latency.
+- The internal URL is `postgres://<user>:<password>@<host>/<db>` — Spring/JDBC needs the
+  `jdbc:postgresql://` form, so split it into the three vars below rather than pasting the URL
+  directly into `POSTGRES_JDBC_URL`.
+
+**2. Backend service** (`auth-service-java`, Web Service, builds from the repo root
+`Dockerfile`):
+
+- Set Root Directory to the repo root; Render detects and builds the `Dockerfile` automatically.
+- Environment variables (Dashboard → Environment; pull the DB values from the Postgres
+  instance's "Connect" tab):
+  ```
+  SPRING_PROFILES_ACTIVE=prod
+  JWT_SECRET=<openssl rand -base64 48>
+  POSTGRES_JDBC_URL=jdbc:postgresql://<internal-host>/<database>
+  POSTGRES_USER=<user>
+  POSTGRES_PASSWORD=<password>
+  ```
+- Health check path: `/actuator/health` (set under Settings → Health Check Path so Render's
+  zero-downtime deploys wait for it). Flyway migrations run automatically on startup.
+- Note the service's public `onrender.com` URL — the portal needs it next.
+- Render's free-tier Web Services spin down after 15 min idle and cold-start on the next
+  request; the first login after idle will be slow. Fine for a demo, not for anything
+  latency-sensitive without a paid plan.
+
+**3. Portal service** (`web/`, Web Service, Node runtime — set Root Directory to `web` in the
+service's Settings):
+
+- Build command: `npm install && npm run build`. Start command: `npm run start`.
+- Environment variables:
+  ```
+  AUTH_API_URL=https://<backend-service>.onrender.com
+  SESSION_SECRET=<node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+  ```
+- Because the browser only ever talks to the portal (same-origin BFF), the **backend's
+  `app.cors.allowed-origins` is irrelevant to the portal** — that setting only matters if some
+  *other*, non-BFF client calls the API directly from a browser. The portal's own outbound calls
+  to `AUTH_API_URL` are server-to-server and aren't subject to CORS at all.
+- Render auto-assigns a public `onrender.com` URL for this service; that's what end users visit.
+
+**Deploy order:** Postgres instance first, then the backend (so you have its URL for
+`AUTH_API_URL`), then the portal.
 
 ### AWS ECS / Google Cloud Run
 
@@ -168,6 +222,13 @@ Before exposing to any real traffic:
 - [ ] `.env` is in `.gitignore` and never committed
 - [ ] Flyway migrations applied cleanly (`status: UP` on health check)
 - [ ] Smoke test: signup → login → refresh → logout flow works end-to-end
+
+If deploying the [Auth Portal](../web/README.md) alongside the backend:
+
+- [ ] `SESSION_SECRET` is a random 32+ byte value, distinct per environment
+- [ ] `AUTH_API_URL` points at the backend's real deployed URL (not `localhost`)
+- [ ] Portal is served over HTTPS — the session cookie's `secure` flag is enabled automatically
+      when `NODE_ENV=production`, which drops the cookie silently over plain HTTP
 
 ---
 
