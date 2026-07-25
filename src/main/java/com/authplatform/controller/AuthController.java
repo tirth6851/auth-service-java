@@ -114,7 +114,8 @@ public class AuthController {
 
     @Operation(
             summary = "Get the current authenticated user",
-            description = "Returns the id and email of the user identified by the bearer access token."
+            description = "Returns the caller's ID, email, verification status, and account creation time. " +
+                    "Requires a valid Bearer access token."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Current user returned",

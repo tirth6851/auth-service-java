@@ -51,6 +51,7 @@ public class SecurityConfig {
                                 "/h2-console/**", "/error", "/actuator/health",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
                         ).permitAll()
+                        // /auth/me intentionally NOT permitAll — requires a valid Bearer token
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(eh -> eh.authenticationEntryPoint(unauthorizedEntryPoint))

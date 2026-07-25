@@ -25,7 +25,7 @@ Register a new user and receive a token pair.
 
 **Validation:**
 - `email`: required, valid email format, must be unique
-- `password`: required, minimum 6 characters
+- `password`: required, minimum 8 characters
 
 **Response (200 OK):**
 ```json
@@ -84,6 +84,7 @@ Authenticate an existing user and receive a token pair.
 |--------|---------|-------|
 | 400 | Validation failed | Missing/invalid field |
 | 401 | Invalid credentials | Email not found or wrong password (non-enumerating) |
+| 429 | Too many login attempts | Rate limit exceeded — see [Rate Limiting](#rate-limiting) |
 | 500 | An unexpected error occurred | Server error |
 
 **Example:**
@@ -307,7 +308,7 @@ Validation errors include a `details` array:
   "error": "Validation failed",
   "details": [
     "email: must be a well-formed email address",
-    "password: size must be between 6 and 2147483647"
+    "password: size must be between 8 and 2147483647"
   ]
 }
 ```
@@ -364,7 +365,7 @@ The `Retry-After` header value is the number of seconds until the rate limit win
 - `app.ratelimit.login.capacity` — max attempts per window (default: `10`)
 - `app.ratelimit.login.refill-period-seconds` — window length in seconds (default: `600`)
 
-**Other endpoints** (`/auth/signup`, `/auth/me`, `/actuator/health`) are not rate-limited.
+**Other endpoints** (`/auth/signup`, `/auth/refresh`, `/auth/logout`, `/auth/me`, `/actuator/health`) are not rate-limited.
 
 ---
 
@@ -403,4 +404,4 @@ app.cors.allowed-origins=https://your-frontend-domain.com
 
 ## Versioning
 
-API is at v1 (implicit). Future versions may use path prefix `/api/v2/auth/...`.
+API is at v1 (implicit). Future versions may use path prefix `/api/v2/auth/...` or header-based versioning.
