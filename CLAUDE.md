@@ -45,6 +45,8 @@ H2 console (dev only): `http://localhost:8080/h2-console`
 | `/java-test-first` | Plan tests before code |
 | `/security-review` | Audit auth, secrets, errors |
 | `/release-checklist` | Pre-merge verification |
+| `/handoff` | Update HANDOFF.md + write next-session prompt before stopping |
+| `/resume` | Read HANDOFF.md, verify against git/tests, orient to continue a session |
 
 ## Session Checklist
 

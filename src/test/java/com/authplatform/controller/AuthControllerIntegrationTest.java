@@ -500,4 +500,93 @@ class AuthControllerIntegrationTest {
                 .header("Origin", "http://localhost:3000"))
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
     }
+
+    // --- Refresh-token reuse detection ---
+
+    @Test
+    void refresh_reuseOfRotatedToken_revokesEntireTokenFamily() throws Exception {
+        // One user, three active sessions (three "devices"): signup + two more logins.
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"reuse@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String tokenA = JsonPath.read(signupResponse, "$.refreshToken");
+        String tokenC = loginAndGetRefreshToken("reuse@example.com", "pass1234"); // device 2
+        String tokenD = loginAndGetRefreshToken("reuse@example.com", "pass1234"); // device 3
+
+        // First refresh rotates A -> B; A becomes revoked. Active family is now {B, C, D}.
+        String refreshResponse = mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + tokenA + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String tokenB = JsonPath.read(refreshResponse, "$.refreshToken");
+
+        // Replaying the rotated token A is detected as reuse -> 401.
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + tokenA + "\"}"))
+                .andExpect(status().isUnauthorized());
+
+        // Reuse must revoke the ENTIRE active family, across all devices — B, C and D all die.
+        for (String token : new String[]{tokenB, tokenC, tokenD}) {
+            mockMvc.perform(post("/auth/refresh")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"refreshToken\":\"" + token + "\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
+
+    private String loginAndGetRefreshToken(String email, String password) throws Exception {
+        String response = mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(response, "$.refreshToken");
+    }
+
+    // --- Case-insensitive email uniqueness (app-level normalization) ---
+
+    @Test
+    void signup_returns409_forCaseVariantEmail() throws Exception {
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"CaseTest@Example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isOk());
+        // Same address, different case -> normalized to the same value -> duplicate.
+        mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"casetest@example.com","password":"pass1234"}
+                    """))
+                .andExpect(status().isConflict());
+    }
+
+    // --- Logout idempotency ---
+
+    @Test
+    void logout_isIdempotent_whenCalledTwice() throws Exception {
+        String signupResponse = mockMvc.perform(post("/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"idemp@example.com","password":"pass1234"}
+                    """))
+                .andReturn().getResponse().getContentAsString();
+        String refreshToken = JsonPath.read(signupResponse, "$.refreshToken");
+
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+        // Revoking an already-revoked token is a no-op -> still 204.
+        mockMvc.perform(post("/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+    }
 }

@@ -7,6 +7,7 @@ import com.authplatform.dto.MeResponse;
 import com.authplatform.dto.RefreshRequest;
 import com.authplatform.dto.SignupRequest;
 import com.authplatform.exception.ErrorResponse;
+import com.authplatform.security.AuthenticatedUser;
 import com.authplatform.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -55,7 +56,8 @@ public class AuthController {
     @Operation(
             summary = "Authenticate an existing user",
             description = "Validates credentials and returns a JWT access token plus a refresh token. " +
-                    "Returns 401 for both unknown email and wrong password (user enumeration protection)."
+                    "Returns 401 for both unknown email and wrong password (user enumeration protection). " +
+                    "Rate limited per IP."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Authentication successful — token pair returned",
@@ -63,6 +65,8 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "Validation failed (blank field or invalid email format)",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "429", description = "Too many login attempts from this IP — see Retry-After header",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/login")
@@ -121,6 +125,7 @@ public class AuthController {
     })
     @GetMapping("/me")
     public ResponseEntity<MeResponse> me(Authentication authentication) {
-        return ResponseEntity.ok(authService.getCurrentUser(authentication.getName()));
+        AuthenticatedUser principal = (AuthenticatedUser) authentication.getPrincipal();
+        return ResponseEntity.ok(authService.getCurrentUser(principal.userId()));
     }
 }
