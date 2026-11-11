@@ -37,8 +37,13 @@ Resumed from the 2026-07-25 handoff. **Drift found:** the handoff's next step ("
 - Do the niche comparison (Keycloak, Authelia, Ory Kratos, Spring Authorization Server, SuperTokens) before any public pitch
 - Still open from before: run `mvn -Pintegration-test verify` once with Docker; Render services never provisioned; `git stash drop` of the redundant stash
 
+### Post-push results (checked 2026-11-10)
+- Push to `main` (`96c07d7`): **CI, CodeQL, and OpenSSF Scorecard all succeeded.** The DCO check has not been exercised on a real contributor PR (it was correctly *skipped* for Dependabot PRs).
+- Dependabot accepted its config and immediately opened **10 PRs** (#16–#25), a one-time first-run flood. Two Maven major bumps fail CI as expected (springdoc 2.5→3.2, Testcontainers 1.19→2.0). Several others are risky major bumps that should probably be closed or ignored: Docker base images to Temurin 25 / Postgres 18 / `maven:3.8-openjdk-18` (the project targets Java 17), `eslint` 10, `iron-session` 9. Consider adding `ignore` rules for major versions to `.github/dependabot.yml`. None were merged or closed.
+- **Unknown to the earlier handoffs:** open PR #14, "feat: Phase A — agent client access via scoped API keys" (`claude/repo-audit-status-pmqj4k`). It conflicts with the "do not invent API keys" gap list unless that was an intentional separate effort; ask the user before touching it.
+
 ### Exact next step
-Check the first runs of CI, CodeQL, Scorecard (`gh run list`) and fix any failures; the DCO check only runs on PRs, so it is still untested. Then walk the user through the GitHub settings checklist in `docs/OPEN_SOURCE_LAUNCH.md`. Note: because the push went straight to `main`, `main` had no protection and no PR review of this change.
+Ask the user what to do with the 10 Dependabot PRs and PR #14 (review, ignore majors, or close). Then walk the user through the GitHub settings checklist in `docs/OPEN_SOURCE_LAUNCH.md`. Note: the push went straight to `main` with no branch protection and no PR review of this change.
 
 ---
 
@@ -248,7 +253,8 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 > Compose quick start and the Postgres Testcontainers test have never been executed; rate limiting keys on
 > `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket (documented, not fixed).
 >
-> **What to do next:** (1) Check the first CI, CodeQL, and Scorecard runs on `main` (`gh run list`) and fix
-> failures; the DCO check only runs on PRs, so it is still untested. (2) Walk the user through the GitHub
+> **What to do next:** (1) CI, CodeQL, and Scorecard already passed on `main` (`96c07d7`). Ask the user how to
+> handle the 10 Dependabot PRs (#16–#25; several are risky major bumps) and the unexplained open PR #14
+> (scoped API keys). The DCO check is still untested on a real contributor PR. (2) Walk the user through the GitHub
 > checklist in `docs/OPEN_SOURCE_LAUNCH.md` (private vulnerability reporting and Discussions first), then
 > help create the starter issues. Use `git commit -s` for all future commits. Run `/handoff` before stopping.
