@@ -7,7 +7,7 @@ COPY src/ src/
 RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime with JRE
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S spring && adduser -S spring -G spring
 WORKDIR /app
 COPY --from=builder /app/target/auth-platform-*.jar auth-platform.jar
