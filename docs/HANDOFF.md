@@ -1,9 +1,27 @@
 # Session Handoff
 
 **Last updated**: 2026-11-10 (Open-source launch prep done, then **Spring Boot 3.5.16 upgrade merged via PR #37**)
-**Branch**: `main` at `5b23bed` (PR #37 merge). Local `main` is synced; no other branches matter. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it**.
+**Branch**: `main` at `14aa202` (PR #37 merge `5b23bed` plus one docs commit), in sync with `origin/main`, clean working tree. No other branches matter. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it**.
 **Tests**: **72 backend tests pass on Boot 3.5.16** (`mvn clean test`, IntelliJ Maven + JBR 21), and the **3 Docker-gated Postgres tests now run in CI on every PR** (`Postgres Integration` job, a required check); they passed against real PostgreSQL 16 with Flyway 11.7.2 and `ddl-auto=validate` for the first time ever. Frontend: still no automated test suite (CI lint + builds it).
 **Current goal**: turn the project into a healthy open-source project (`docs/OPEN_SOURCE_LAUNCH.md`). Repo files, GitHub settings, branch protection, starter issues, CI, and the Spring Boot upgrade are done. Remaining: the other Dependabot PRs, PR #14, badges, the niche comparison, and the launch itself.
+
+---
+
+## At a glance (2026-11-10 session, authoritative)
+
+**Done this session (details in the sections below):** open-source launch prep (SECURITY.md, CONTRIBUTING with DCO, README rewrite, Dependabot/CodeQL/Scorecard/DCO workflows, GitHub settings, branch protection, 7 starter issues) and the **Spring Boot 3.2.5 → 3.5.16 upgrade** (PR #37).
+
+**Files, grouped:** *source/build* `pom.xml` only. *Tests* `PostgresFlywayIntegrationTest` (+1 test). *CI/config* `.github/workflows/{ci,codeql,scorecard,dco}.yml`, `.github/dependabot.yml`, `.github/ISSUE_TEMPLATE/*`, PR template. *Web* `web/package-lock.json` (resynced for npm 10). *Docs* `SECURITY.md`, `CONTRIBUTING.md`, `README.md`, `CLAUDE.md`, `CLAUDE_SESSION_START.md`, and under `docs/`: `OPEN_SOURCE_LAUNCH.md` (new), `PROJECT_DECISIONS.md` (D-011, D-012), `PROJECT_PROGRESS.md`, `PROJECT_BACKLOG.md`, `TRD.md`, `PROJECT_CONTEXT.md`, `HANDOFF.md`. No application Java code changed.
+
+**Tests:** last local run `mvn clean test` = 72 passed, 0 failed (IntelliJ JBR 21 + bundled Maven). Nothing in `src/`, `pom.xml`, `web/`, or `.github/` changed after that run. The 3 Postgres Testcontainers tests run in CI only (no Docker locally) and passed. CI is green on `main`.
+
+**Key decisions:** self-hostable service, not a library (the code is a runnable service + portal); keep MIT and add a DCO (clearer provenance, no CLA admin); 3-business-day response target (one a solo maintainer can keep); no comparative claims until the niche check is done; Boot 3.5 (not 4) with Boot-managed Testcontainers; dependency PRs are not merged without discussion (`MISSION_CONTROL.md`); branch protection keeps admin bypass.
+
+**Known gaps (do NOT invent):** no password reset, email verification, sessions/devices API, RBAC, audit logging, token revocation, or shared (Redis) rate limiting; portal has no runtime tests; rate limiting keys on `getRemoteAddr()` (all clients share a bucket behind a proxy).
+
+**Open risks / deferred:** remaining Dependabot PRs (#36, #23, #33, #34) and PR #14 (unexplained) await the user; Docker Compose quick start and Dockerfile build image never exercised on Boot 3.5; Render services never provisioned; redundant `git stash` (`stash@{0}`) still present, the user can drop it; Scorecard/Best Practices badges, niche comparison (Keycloak, Authelia, Ory Kratos, Spring Authorization Server, SuperTokens), and launch posts not done.
+
+**Exact next step:** ask the user what PR #14 is, then decide on the Dependabot PRs. After that: badges, niche comparison, launch.
 
 ---
 
@@ -62,7 +80,7 @@ Resumed from the 2026-07-25 handoff. **Drift found:** the handoff's next step ("
 - Repo description updated to say Spring Boot 3.5; version references updated in README, CONTRIBUTING, CLAUDE.md, CLAUDE_SESSION_START.md, TRD, PROJECT_CONTEXT, dependabot comment, launch doc. `docs/spec.md` is the original Phase 1 spec and was intentionally left as history.
 
 ### Exact next step
-Ask the user to decide on the remaining open Dependabot PRs (#19 stale Actions majors, #23 npm minor/patch, #33/#34 stale lockfile patches), and about PR #14. Dependabot will now re-propose the other Maven updates (for example Bucket4j) against the new baseline. Then the Scorecard and Best Practices badges, the niche comparison, and the launch itself (`docs/OPEN_SOURCE_LAUNCH.md`).
+Ask the user to decide on the remaining open Dependabot PRs (#36 Actions group of 4 updates, #23 npm minor/patch, #33/#34 lockfile-only transitive patches), and about PR #14. Dependabot will now re-propose the other Maven updates (for example Bucket4j) against the new baseline. Then the Scorecard and Best Practices badges, the niche comparison, and the launch itself (`docs/OPEN_SOURCE_LAUNCH.md`).
 
 ---
 
@@ -246,7 +264,7 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 
 ## 🔖 New Session Prompt (ready to paste)
 
-> Continue the Java Auth Service project (open-source launch). Work from `main` (`5b23bed` or later); there
+> Continue the Java Auth Service project (open-source launch). Work from `main` (`14aa202` or later); there
 > is no long-lived feature branch. This is the authoritative starting state; do not re-derive it.
 >
 > **Read first, in order:** `CLAUDE.md`, this `docs/HANDOFF.md`'s top section (everything below the
@@ -274,8 +292,8 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 > 8.10; the Docker Compose quick start and the Dockerfile build image were never exercised on Boot 3.5; the
 > web portal has no runtime tests (CI only lints and builds it); the Render services were never provisioned.
 >
-> **What to do next:** (1) Ask the user about the remaining open Dependabot PRs: #19 (stale GitHub Actions
-> majors), #23 (13 npm minor/patch bumps), #33/#34 (stale lockfile patches), and PR #14. Dependabot will
+> **What to do next:** (1) Ask the user about the remaining open Dependabot PRs: #36 (GitHub Actions group, 4
+> updates), #23 (13 npm minor/patch bumps), #33/#34 (lockfile-only patches), and PR #14. Dependabot will
 > re-propose other Maven updates (for example Bucket4j) against the new baseline. (2) Remaining launch work:
 > Scorecard and Best Practices badges, the niche comparison, then the launch posts. Run `/handoff` before
 > stopping.

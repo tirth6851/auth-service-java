@@ -148,9 +148,9 @@ See "Latest Metrics" below for current test count. `main` branch is green.
 | Metric | Value |
 |--------|-------|
 | Test count | 72 default (H2) + 3 Postgres Testcontainers = 75, 0 failures. Default suite re-run locally on Boot 3.5.16; the 3 Postgres tests run in CI (`Postgres Integration`) |
-| Build status | CI green on `main` (`5b23bed`): Build and Test, Postgres Integration, Web Build, CodeQL, Scorecard |
-| Branch | `main` at `5b23bed` |
-| Open PRs | #14 (scoped API keys, unexplained), #19, #23, #33, #34 (Dependabot, not merged) |
+| Build status | CI green on `main` (`14aa202`): Build and Test, Postgres Integration, Web Build, CodeQL, Scorecard |
+| Branch | `main` at `14aa202` |
+| Open PRs | #14 (scoped API keys, unexplained), #23, #33, #34, #36 (Dependabot, not merged) |
 | Phase | 3 — Open-source launch prep: repo files, settings, protection, starter issues, and Boot 3.5 upgrade done; badges, niche comparison, and launch posts remain (see `docs/OPEN_SOURCE_LAUNCH.md`) |
 
 <!-- Prior metrics (2026-07-25): test count 72 on claude/auth-portal-m1; 2026-06-30: 68 -->
