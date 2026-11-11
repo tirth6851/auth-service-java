@@ -67,6 +67,22 @@ _(Nothing currently queued — see Medium Priority below.)_
 - Separate bucket-per-IP from `/auth/login` so exhausting one endpoint's limit does not block the other
 - Config: `app.ratelimit.signup.capacity`, `app.ratelimit.signup.refill-period-seconds`
 
+### ✅ Open-Source Launch Prep — repo files (branch `claude/open-source-readiness`, 2026-11-10)
+- `SECURITY.md`, rewritten `CONTRIBUTING.md` (newcomer section, 3-day response target, DCO, AI-PR policy), README rewritten against current code
+- Dependabot, CodeQL, OpenSSF Scorecard, and DCO workflows; `ci.yml` read-only permissions and SHA-pinned actions
+- `docs/OPEN_SOURCE_LAUNCH.md`: GitHub-settings checklist, starter-issue drafts, launch gates (see D-011)
+
+---
+
+## Open-Source Launch (owner actions, not yet done)
+
+Tracked in detail in [`docs/OPEN_SOURCE_LAUNCH.md`](OPEN_SOURCE_LAUNCH.md).
+- Enable private vulnerability reporting and Discussions; set repo description and topics; create labels; branch protection
+- Push the branch and confirm the four workflows run green (they have never executed)
+- Create the starter issues; decide what to do with internal-looking files (`docs/AGENT_REWARDS.md`, `DOCUMENTATION_COMPLETE.md`, etc.)
+- Run the niche comparison before any public launch post
+- Run `mvn -Pintegration-test verify` once on a Docker machine
+
 ---
 
 ## Medium Priority

@@ -35,7 +35,13 @@
 - [ ] No secrets hardcoded (passwords, JWT keys, API keys)
 - [ ] No passwords or raw tokens logged
 - [ ] Error responses do not leak internal details
-- [ ] If touching auth flow: ran `/security-review` (see CLAUDE.md)
+- [ ] If touching the auth flow, tokens, or error responses: re-read the affected code for security impact and note anything non-obvious in the PR description
+
+## Contribution checklist
+
+- [ ] Every commit is signed off (`git commit -s`), per the [DCO section of CONTRIBUTING.md](../blob/main/CONTRIBUTING.md#developer-certificate-of-origin-dco)
+- [ ] I have read and can explain every line of this change
+- [ ] A substantial part of this PR was AI-generated (tick if yes, and say which part above)
 
 ## Breaking changes
 

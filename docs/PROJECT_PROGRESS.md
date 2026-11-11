@@ -127,20 +127,32 @@ See "Latest Metrics" below for current test count. `main` branch is green.
 - Renumbered `docs/ADR/005-rate-limiting-strategy.md` → `007-rate-limiting-strategy.md`
 - Closed stale PR #5 (401 fix already merged via PR #6)
 
-## Latest Metrics (2026-06-30)
+### Milestone 15 — Open-source launch prep, repo files (2026-11-10)
+**Branch**: `claude/open-source-readiness` (from `origin/main` after PR #15)
+- Positioning, license, and contribution terms decided (D-011): self-hostable service, MIT + DCO, 3-business-day response target
+- Added `SECURITY.md`; rewrote `CONTRIBUTING.md` and `README.md` against the current code (README previously claimed 37 tests and stale endpoint shapes)
+- Added Dependabot (monthly, grouped), CodeQL (Java + JS/TS), OpenSSF Scorecard, and DCO check workflows; `ci.yml` now has read-only token permissions and SHA-pinned actions
+- Added `docs/OPEN_SOURCE_LAUNCH.md` (settings checklist, 7 starter-issue drafts, launch gates)
+- No application code changed; no GitHub settings changed; nothing pushed
+- Found and documented a limitation: rate limiting keys on `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket
+
+## Latest Metrics (2026-11-10)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 68 (0 failures) — verified after auth-me + rate-limit merge, on `claude/auth-portal-m1` before this merge into `main` |
+| Test count | 72 (0 failures) — `mvn -B test` re-run on 2026-11-10 with IntelliJ JBR 21 (3 Docker-gated Postgres tests excluded; not yet executed anywhere) |
 | Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `claude/auth-portal-m1` (fast-forwarded from `claude/refresh-tokens`, now merged with `main`) |
-| Open PRs | 1 (refresh tokens + hardening + rate limiting + auth-me + Auth Portal M1, combined) |
-| Phase | 3 — Open-source readiness complete; auth-me + rate limiting merged; Auth Portal M1 built |
+| Branch | `claude/open-source-readiness` (docs/config only), branched from `origin/main` at `07d288f` |
+| Open PRs | 0. PR #15 (`claude/auth-portal-m1`) merged into `main`; the open-source prep branch is not yet pushed or PR'd |
+| Phase | 3 — Open-source launch prep in progress; repo files done, GitHub settings and workflow verification pending (see `docs/OPEN_SOURCE_LAUNCH.md`) |
+
+<!-- Prior metrics (2026-07-25): test count 72 on claude/auth-portal-m1; 2026-06-30: 68 -->
 
 ## Recent PR History
 
 | PR | Title | Status |
 |----|-------|--------|
+| #15 | Claude/auth portal m1 (Portal M1, signup rate limit, Testcontainers test, render.yaml) | Merged |
 | #10 | feat: refresh tokens, logout, CORS, and actuator security | Merged 2026-06-30 |
 | #9 | security: harden Dockerfile, frame options, and docker-compose secret handling | Merged 2026-06-19 |
 | #6 | fix: return 401 instead of 403 for unauthenticated requests | Merged 2026-06-14 |

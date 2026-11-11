@@ -1,13 +1,96 @@
 # Session Handoff
 
-**Last updated**: 2026-07-25 (Portal M1 committed + pushed; branch merged with `main`; Render deploy docs)
-**Branch**: `claude/auth-portal-m1`
-**Tests**: 68 backend tests passing (0 failures), verified via IntelliJ Maven + JBR 21 after the merge below. Frontend: no automated suite yet; manually verified this session (signup/login/logout/protected `/account`/silent-refresh all exercised via curl — see prior session's stash notes for the exact reproduction steps if needed again).
-**Current goal**: branch is now committed, pushed, and merged with `origin/main` — the open PR should be mergeable. Render is now the documented two-service deploy target (Railway was dropped — user reported they can't deploy there). Actual Render service provisioning has NOT been done (requires the user's own dashboard/account access).
+**Last updated**: 2026-11-10 (Open-source launch prep — repo files committed with sign-off and pushed directly to `main` at the user's request; no PR, no GitHub settings changed)
+**Branch**: work was done on `claude/open-source-readiness` (cut from `origin/main` `07d288f`, the PR #15 merge) and fast-forward pushed to `origin/main`. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it** (deliberately left out of the push even though the user said "push all").
+**Tests**: **72 backend tests passing (0 failures)**, re-run this session via IntelliJ Maven + JBR 21 (`mvn -B test`). The 3 Docker-gated Postgres tests are excluded and have still never run anywhere. No application code changed this session. Frontend: still no automated suite.
+**Current goal**: turn the project into a healthy open-source project, following `docs/OPEN_SOURCE_LAUNCH.md`. Repo-file work is done and on `main`; the four new workflows run for the first time on that push (check their results first). GitHub settings and launch steps are the user's to do.
 
 ---
 
-## What Was Completed This Session (2026-07-25 — commit, push, merge, Render switch)
+## What Was Completed This Session (2026-11-10 — open-source launch prep)
+
+Resumed from the 2026-07-25 handoff. **Drift found:** the handoff's next step ("open the PR") was stale — PR #15 had already been merged, and the committed `HANDOFF.md` was an older version than the working-tree rewrite.
+
+**Decisions (user-confirmed, recorded as D-011):** position as a **self-hostable auth service** (not a library, so no Maven Central or adapter modules); **keep MIT + add DCO**; **3-business-day** response target; scope = **repo files only** (no GitHub settings changed, no posting, nothing pushed).
+
+**Added or changed:**
+
+| Area | Files |
+|------|-------|
+| Trust | `SECURITY.md` (new): private reporting via GitHub advisories, email fallback, 3-business-day ack, scope, "unaudited" notice, known limitations |
+| Contribution | `CONTRIBUTING.md` (rewritten: newcomer section, assigned-issue-before-PR rule, DCO, AI-assisted PR policy, contributor→triager→committer ladder); `.github/PULL_REQUEST_TEMPLATE.md` (DCO, AI disclosure, generic security checklist); `.github/ISSUE_TEMPLATE/config.yml` (new), `bug_report.md` |
+| README | `README.md` rewritten against current code (old one claimed 37 tests, one-field signup response, rate limiting "pending merge", and a hardcoded secret default) |
+| Automation | `.github/dependabot.yml`; `.github/workflows/codeql.yml`, `scorecard.yml`, `dco.yml` (all new); `ci.yml` (read-only permissions, SHA-pinned actions). SHAs were resolved through the GitHub API, staying on the major versions CI already used |
+| Docs | `docs/OPEN_SOURCE_LAUNCH.md` (new: GitHub checklist, 7 starter-issue drafts, launch gates, channels); `PROJECT_DECISIONS.md` (D-011), `PROJECT_BACKLOG.md`, `PROJECT_PROGRESS.md` |
+
+**Verified:** all YAML files parse (`actionlint` not installed). README test counts, endpoints, DTO shapes, config properties, and reuse-detection behavior were checked against source. Starter-issue "current state" claims were grepped (no Hikari tuning, no API collection, no web tests; BCrypt only mocked in unit tests).
+
+**Not verified:** the four workflows have **never run** (CodeQL `build-mode: none`, Scorecard `publish_results`, and the DCO check are untested until pushed). The Docker Compose quick start was not run (no Docker daemon).
+
+**Finding (documented, not fixed):** rate limiting keys on `request.getRemoteAddr()` and no forwarded-header handling exists, so behind a reverse proxy all clients share one bucket. Recorded in README and `SECURITY.md`; starter issue 7 proposes an ADR.
+
+### Open items / owner actions
+- Review the diff, then commit (**with `git commit -s`**, or the new DCO check fails this branch's own PR), push, open a PR, and watch the four workflows
+- Do the GitHub settings checklist in `docs/OPEN_SOURCE_LAUNCH.md` (private vulnerability reporting and Discussions first, since new files link to them)
+- Decide what to do with internal-looking files (`docs/AGENT_REWARDS.md`, `DOCUMENTATION_COMPLETE.md`, `CLAUDE*.md`); none were removed
+- `docs/PROJECT_DECISIONS.md` D-009 is stale (principal is `AuthenticatedUser`, not email); intentionally left as starter issue 5
+- Do the niche comparison (Keycloak, Authelia, Ory Kratos, Spring Authorization Server, SuperTokens) before any public pitch
+- Still open from before: run `mvn -Pintegration-test verify` once with Docker; Render services never provisioned; `git stash drop` of the redundant stash
+
+### Exact next step
+Check the first runs of CI, CodeQL, Scorecard (`gh run list`) and fix any failures; the DCO check only runs on PRs, so it is still untested. Then walk the user through the GitHub settings checklist in `docs/OPEN_SOURCE_LAUNCH.md`. Note: because the push went straight to `main`, `main` had no protection and no PR review of this change.
+
+---
+
+## What Was Completed This Session (2026-07-25 — backlog sweep via 4 parallel agents) ⚠️ historical; its "open the PR" next step is superseded (PR #15 merged)
+
+Prior session's handoff (see superseded section below) listed 5 open items. All were dispatched to isolated-worktree agents in parallel, merged back onto `claude/auth-portal-m1`, and re-verified:
+
+1. **Rate-limit `POST /auth/signup`** — extended the existing Bucket4j mechanism (generalized `LoginRateLimitInterceptor` → `RateLimitInterceptor`, parametrized), wired a **separate bucket per endpoint** (10 attempts/10min/IP each) via `WebConfig.java` so exhausting login's limit doesn't block signup or vice versa (proven with an explicit independence test). +4 integration tests.
+2. **`LOWER(email)` functional index** — investigated rather than blindly adding a migration: the index already existed in `V1__create_users_table.sql` (`idx_users_email_lower`), and repository lookups intentionally stay exact-match because `AuthService` normalizes email (`.trim().toLowerCase()`) before every lookup (see `docs/PROJECT_DECISIONS.md` D-008). Corrected 3 docs (`HANDOFF.md`, `PROJECT_BACKLOG.md`, `PROJECT_DECISIONS.md`) that had stale "not yet added" claims. No schema/code change needed.
+3. **PostgreSQL Testcontainers integration test** — added `PostgresFlywayIntegrationTest` (spins up real `postgres:16-alpine`, runs all Flyway migrations, then a signup→login smoke test through the real stack). Tagged `@Tag("integration")`, gated behind a new `integration-test` Maven profile (`mvn -Pintegration-test verify`) so it does **not** run in default `mvn test`/CI — no Docker daemon was available in this session to actually execute it, only compile it. **Needs a one-time run on a Docker-enabled machine/CI before it can be trusted.**
+4. **`render.yaml` Render Blueprint** — added at repo root implementing `docs/DEPLOYMENT.md`'s documented two-service deploy (Postgres database + Docker backend service + Node portal service). Deliberately left `JWT_SECRET`, `SESSION_SECRET`, and the full JDBC URL as `sync: false` manual placeholders rather than fabricating values Render's blueprint spec can't actually auto-derive; flagged in a `docs/DEPLOYMENT.md` callout.
+5. **Stale stash cleanup** — verified `stash@{0}` ("pre-merge HANDOFF.md") was fully superseded by the already-committed `HANDOFF.md` rewrite; the actual `git stash drop` was blocked by the session's auto-mode classifier (destructive-op guard) — **still present, not yet dropped**, safe for the user to drop manually (`git stash drop`).
+
+Two of the four worktree agents initially branched from a stale base (missing the refresh-token hardening + Portal M1 commits — caught via a 46-vs-68 test count mismatch), were synced to the branch tip before merging, and re-verified. See `docs/AGENT_REWARDS.md` for a per-agent scorecard of this sweep.
+
+### Files created/modified this session
+| Area | Files |
+|------|-------|
+| Source (signup rate limit) | `config/RateLimitInterceptor.java` (renamed from `LoginRateLimitInterceptor.java`), `config/WebConfig.java`, `exception/RateLimitExceededException.java`, `exception/GlobalExceptionHandler.java`, `application.properties` (main + test) |
+| Tests | `controller/AuthControllerIntegrationTest.java` (+4 signup rate-limit tests), `integration/PostgresFlywayIntegrationTest.java` (new, Docker-gated) |
+| Build | `pom.xml` (Testcontainers BOM + deps, `integration-test` profile, `excludedGroups` for default surefire) |
+| Deploy | `render.yaml` (new) |
+| Docs | `docs/API_CONTRACT.md`, `docs/PROJECT_BACKLOG.md`, `docs/PROJECT_DECISIONS.md`, `docs/DEPLOYMENT.md`, `docs/ADR/007-rate-limiting-strategy.md` (addendum), `docs/AGENT_REWARDS.md` (new) |
+
+### Tests run and results
+`mvn -B test` (JAVA_HOME = IntelliJ JBR 21) on the fully merged branch: **72 tests, 0 failures, 0 errors, BUILD SUCCESS.** The new `PostgresFlywayIntegrationTest` is excluded from this run by design (`excludedGroups=integration`) — not yet executed against real Docker/Postgres in this environment.
+
+### Key decisions
+- **Separate rate-limit buckets per endpoint** (not shared) — so a user hammering login doesn't get accidentally locked out of signup.
+- **No new migration for the email index** — it already existed; avoided adding a duplicate/failing `CREATE INDEX` on Postgres.
+- **Testcontainers test gated behind a Maven profile, not default `mvn test`** — keeps the fast H2 suite fast and CI-safe when no Docker is available; explicit opt-in via `-Pintegration-test`.
+- **`render.yaml` leaves secrets as `sync:false`** — never fabricate/hardcode `JWT_SECRET`/`SESSION_SECRET`/JDBC URL; Render's blueprint spec genuinely can't auto-derive the JDBC form or concatenate `https://` onto a bare hostname.
+- **GitHub PR open/merge deliberately NOT done** — visible action on shared state, left for explicit user confirmation.
+
+### Known constraints / backend gaps (do NOT invent these)
+- No password reset, no email verification (`isVerified` unused), no sessions/devices API, no RBAC.
+- Frontend (`web/`) still has no automated test suite — manual curl verification only (from an earlier session).
+- The new Testcontainers test has not actually been executed yet (no Docker daemon in this session) — don't assume it's proven, just compiled/merged correctly.
+
+### Open risks / TODOs
+- **Run `mvn -Pintegration-test verify` on a Docker-enabled machine/CI at least once** to confirm the new Postgres integration test actually passes for real (not just compiles).
+- **GitHub PR still not opened/merged** — user was asked, hadn't answered as of this handoff.
+- **Stray `git stash` entry** ("pre-merge HANDOFF.md") still exists — confirmed redundant, blocked from auto-dropping by the classifier; user can `git stash drop` it themselves.
+- **Render services still not provisioned** — `render.yaml` blueprint now exists as a faster path, but nobody has actually deployed via Render dashboard yet.
+- Older Phase-2-candidate backlog items remain open and untouched this session: audit logging, token revocation/denylist, Redis-backed shared rate limiting for horizontal scaling.
+
+### Exact next step
+Ask the user whether to run `gh pr create` (and eventually `gh pr merge`) for `claude/auth-portal-m1` → `main`. If yes, run it and report the PR URL. Separately, if the user has Docker available, run `mvn -Pintegration-test verify` once to validate the new Postgres integration test for real.
+
+---
+
+## What Was Completed This Session (2026-07-25 — commit, push, merge, Render switch) ⚠️ superseded by the section above
 
 - **Committed the Auth Portal M1 frontend** (`web/`, ~41 files) as `c3b4dca` — previously built and manually verified in the prior session but left uncommitted. Verified `.env.local` and `node_modules` were correctly excluded via `web/.gitignore` before staging.
 - **Committed `docs/DEPLOYMENT.md`** separately, then **rewrote its two-service deploy section from Railway to Render** (`3433f36`) — the user reported they're unable to deploy on Railway. New section documents: a Render Postgres instance (internal vs external URL), the backend as a Docker-based Web Service (`/actuator/health` as the Render health check path, env vars pulled from the Postgres "Connect" tab), and the portal as a Node-based Web Service (root dir `web`, `AUTH_API_URL`/`SESSION_SECRET` env vars). Notes the free-tier cold-start behavior (15 min idle → slow first request) and that CORS is irrelevant to the portal itself (same-origin BFF; only matters for non-portal browser clients hitting the API directly).
@@ -139,31 +222,33 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 
 ## 🔖 New Session Prompt (ready to paste)
 
-> Continue the Java Auth Service project (branch `claude/auth-portal-m1`). This is the authoritative
-> starting state — do not re-derive it.
+> Continue the Java Auth Service project, open-source launch prep. The work is on `main` (pushed directly
+> from `claude/open-source-readiness`, which was cut from `07d288f`). PR #15 is already merged, so do NOT
+> open a PR for `claude/auth-portal-m1`.
+> This is the authoritative starting state; do not re-derive it.
 >
-> **Read first, in order:** `CLAUDE.md`, this `docs/HANDOFF.md`'s top section ("2026-07-25 — commit,
-> push, merge, Render switch" — everything below that is historical/superseded), `docs/PORTAL_MILESTONE_1.md`,
-> `web/README.md`, `docs/DEPLOYMENT.md`'s "Render: backend + Auth Portal" section.
+> **Read first, in order:** `CLAUDE.md`, this `docs/HANDOFF.md`'s top section ("2026-11-10 — open-source
+> launch prep"; everything below it is historical), `docs/OPEN_SOURCE_LAUNCH.md`, and `docs/PROJECT_DECISIONS.md`
+> D-011.
 >
-> **Current state (done, do NOT redo):** Backend has signup/login/refresh/logout/`/auth/me` + Bucket4j
-> login rate limiting + refresh-token reuse detection + `@Version` optimistic lock + 15-min prod JWT
-> TTL. **68 backend tests pass.** The Auth Portal (Milestone 1) is fully built in `web/` (signup, login,
-> logout, protected `/account` with silent refresh via `proxy.ts`, two "not available yet" placeholders)
-> — committed as `c3b4dca`. `docs/DEPLOYMENT.md` documents a two-service **Render** deploy (Postgres
-> instance → backend Docker Web Service → portal Node Web Service) — Railway was dropped because the
-> user couldn't deploy there. The branch has been fully merged with `origin/main` (merge commit `924ffdf`,
-> 6 conflicts resolved, all re-verified against 68/68 passing tests) and pushed. Build backend with
-> IntelliJ's bundled Maven + JBR 21 (NOT system JDK 24).
+> **State:** Repo-file work is done and **committed on `main`**: `SECURITY.md`, rewritten `CONTRIBUTING.md` and
+> `README.md`, Dependabot, CodeQL, Scorecard and DCO workflows, `ci.yml` hardening, PR/issue template
+> changes, `docs/OPEN_SOURCE_LAUNCH.md`, plus D-011 and backlog/progress updates. 72 backend tests pass
+> (`mvn -B test`, IntelliJ JBR 21 + bundled Maven, NOT system JDK 24). No application code changed.
+> Decisions made with the user: self-hostable service positioning, MIT + DCO, 3-business-day response
+> target, repo files only (no GitHub settings changed, nothing posted or pushed).
 >
-> **Backend gaps (do NOT invent these):** no password reset, no email verification (`isVerified` unused),
-> no sessions/devices API, no RBAC. `/auth/me` exists but the portal intentionally doesn't call it.
+> **Do NOT:** stage or move `Java auth open source growth.md` (the user's private research, untracked on
+> purpose); remove the internal-looking files without asking; make comparative or niche claims about other
+> auth projects (the overlap check is not done); invent password reset, email verification, RBAC, sessions
+> API, audit logging, or token revocation; push, open PRs, change GitHub settings, or post anywhere without
+> explicit confirmation.
 >
-> **What NOT to redo:** the merge conflict resolution (already done and tested), the Railway→Render docs
-> rewrite (already done), committing `web/` (already done).
+> **Caveats to keep in mind:** the four new workflows have never run (verify after push); the Docker
+> Compose quick start and the Postgres Testcontainers test have never been executed; rate limiting keys on
+> `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket (documented, not fixed).
 >
-> **What to do next:** Render services have not been provisioned yet (no Render account/dashboard access
-> in this session) — either generate a `render.yaml` blueprint for the user, or walk them through the
-> manual steps in `docs/DEPLOYMENT.md`. Also confirm whether to open/merge the actual GitHub PR via `gh`.
-> A stray `git stash` entry ("pre-merge HANDOFF.md") is now superseded by this file — check if it should
-> be dropped. A `/handoff` skill exists (`.claude/skills/handoff/SKILL.md`); run `/handoff` before stopping.
+> **What to do next:** (1) Check the first CI, CodeQL, and Scorecard runs on `main` (`gh run list`) and fix
+> failures; the DCO check only runs on PRs, so it is still untested. (2) Walk the user through the GitHub
+> checklist in `docs/OPEN_SOURCE_LAUNCH.md` (private vulnerability reporting and Discussions first), then
+> help create the starter issues. Use `git commit -s` for all future commits. Run `/handoff` before stopping.

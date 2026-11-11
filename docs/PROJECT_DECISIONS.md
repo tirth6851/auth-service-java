@@ -104,3 +104,13 @@ Record of every significant architectural or engineering decision made during de
 **Reason:** Spring Security 6 defaults to `Http403ForbiddenEntryPoint` when no `httpBasic()`/`formLogin()` is configured. RFC 7235 requires 401 (with `WWW-Authenticate`) for unauthenticated access; 403 is for authorization failures by authenticated users.
 **Alternatives considered:** `HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)` built-in — simpler but less explicit; a named class makes the intent obvious in the filter chain.
 **Consequences:** Missing/invalid/expired JWTs now correctly return 401. Future role-based access denials (authenticated user, insufficient permission) will return 403 via the `AccessDeniedHandler` path, which is the correct semantic split.
+
+---
+
+## D-011 — Open-Source Positioning, License, and Contribution Terms
+
+**Date:** 2026-11-10
+**Decision:** (1) Position the project as a **self-hostable auth service**, not a reusable library. (2) **Keep the MIT license** and add a **Developer Certificate of Origin** (`Signed-off-by`, enforced by `.github/workflows/dco.yml`) instead of a CLA. (3) Publish a **3-business-day first-response target** for issues, PRs, and security reports. (4) Make factual claims only: an explicit "unaudited" notice, and no comparative or niche claims until an overlap check against comparable projects is done.
+**Reason:** The codebase is a runnable Spring Boot service plus web portal, so Maven Central publishing and adapter-module advice (written for libraries) does not apply. MIT is permissive and well understood; a DCO gives clearer provenance without CLA administration a solo maintainer cannot staff. The response target is one a single maintainer can sustain; publishing a tighter one risks silence, which is the main driver of lost contributors. Overclaiming is a larger risk than underclaiming for authentication software.
+**Alternatives considered:** Apache-2.0 plus DCO (explicit patent grant; needed later for CNCF, not needed now); extracting an auth library (large refactor, competes with established libraries); a 2-business-day target (riskier during exams).
+**Consequences:** `SECURITY.md`, `CONTRIBUTING.md`, PR template, and `.github/` automation (Dependabot, CodeQL, Scorecard, DCO) were added. Relicensing to Apache-2.0 stays possible later because the maintainer holds all copyright today, but gets harder once outside contributions land. Full plan and checklist: `docs/OPEN_SOURCE_LAUNCH.md`.
