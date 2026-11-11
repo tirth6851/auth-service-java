@@ -46,6 +46,14 @@ None of the new workflows has run yet. Check the first runs after you push (see 
 
 Do these in order. Items 1 to 3 come first because the new files link to the pages they enable.
 
+**Status (2026-11-10):** items 1–7, 9, and 11 are **done** (applied with `gh`, then verified): private
+vulnerability reporting, Discussions, description and 15 topics, labels, Dependabot alerts and security
+updates, secret scanning with push protection, read-only workflow permissions, first workflow runs (CI,
+CodeQL, Scorecard green on `main`), and starter issues #26–#32. Still **open**: item 8 (branch protection,
+deliberately not applied because it changes how you can push to `main`), item 10 (Scorecard badge and Best
+Practices badge), and pinning a "Start here" discussion (item 2). The DCO check has not run on a real
+contributor PR yet.
+
 1. **Enable private vulnerability reporting.** Settings → Code security → *Private vulnerability
    reporting*. `SECURITY.md` and `ISSUE_TEMPLATE/config.yml` link to it.
 2. **Enable Discussions.** Settings → General → Features. `CONTRIBUTING.md` and the issue config link to it.

@@ -1,9 +1,9 @@
 # Session Handoff
 
-**Last updated**: 2026-11-10 (Open-source launch prep — repo files committed with sign-off and pushed directly to `main` at the user's request; no PR, no GitHub settings changed)
+**Last updated**: 2026-11-10 (Open-source launch prep — repo files, GitHub settings, and starter issues done; pushed directly to `main` at the user's request, no PR)
 **Branch**: work was done on `claude/open-source-readiness` (cut from `origin/main` `07d288f`, the PR #15 merge) and fast-forward pushed to `origin/main`. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it** (deliberately left out of the push even though the user said "push all").
 **Tests**: **72 backend tests passing (0 failures)**, re-run this session via IntelliJ Maven + JBR 21 (`mvn -B test`). The 3 Docker-gated Postgres tests are excluded and have still never run anywhere. No application code changed this session. Frontend: still no automated suite.
-**Current goal**: turn the project into a healthy open-source project, following `docs/OPEN_SOURCE_LAUNCH.md`. Repo-file work is done and on `main`; the four new workflows run for the first time on that push (check their results first). GitHub settings and launch steps are the user's to do.
+**Current goal**: turn the project into a healthy open-source project, following `docs/OPEN_SOURCE_LAUNCH.md`. Repo files, GitHub settings, and starter issues are done; remaining work is branch protection, badges, deciding on Dependabot PRs and PR #14, the niche comparison, and the launch itself.
 
 ---
 
@@ -42,8 +42,15 @@ Resumed from the 2026-07-25 handoff. **Drift found:** the handoff's next step ("
 - Dependabot accepted its config and immediately opened **10 PRs** (#16–#25), a one-time first-run flood. Two Maven major bumps fail CI as expected (springdoc 2.5→3.2, Testcontainers 1.19→2.0). Several others are risky major bumps that should probably be closed or ignored: Docker base images to Temurin 25 / Postgres 18 / `maven:3.8-openjdk-18` (the project targets Java 17), `eslint` 10, `iron-session` 9. Consider adding `ignore` rules for major versions to `.github/dependabot.yml`. None were merged or closed.
 - **Unknown to the earlier handoffs:** open PR #14, "feat: Phase A — agent client access via scoped API keys" (`claude/repo-audit-status-pmqj4k`). It conflicts with the "do not invent API keys" gap list unless that was an intentional separate effort; ask the user before touching it.
 
+### Follow-up done later the same day (user said "just do it")
+- **Dependabot:** added `ignore` rules for major-version bumps (maven, npm, docker, docker-compose; GitHub Actions majors still allowed) in `ebd6637`. Dependabot auto-closed 6 major-bump PRs (#16, #18, #21, #22, #24, #25) and regrouped. I closed #17 (Maven build image to `openjdk-18`, which Dependabot did not classify as major) with an explanatory comment.
+- **GitHub settings applied via `gh`, verified:** description, 15 topics, Discussions, private vulnerability reporting, Dependabot security updates, secret scanning + push protection, read-only default workflow permissions. Created labels `testing`, `observability` (a duplicate `docs` label was created then deleted; the repo's existing `documentation` label is used).
+- **Starter issues created:** #26 BCrypt stored-hash test, #27 HikariCP tuning, #28 Bruno/Postman collection, #29 stale D-009 doc, #30 verify Docker Compose quick start, #31 frontend test setup, #32 rate limiting behind a proxy (needs ADR).
+- **Not done on purpose:** branch protection on `main` (changes how the user can push); PR #14 untouched.
+- **Open Dependabot PRs (not merged):** #19 (actions group), #23/#33/#34 (npm), #35 (maven minor/patch). **CI caveat:** the `Build and Test` job only builds the Maven backend, so green checks on the npm PRs say nothing about whether `web/` still builds. Run `npm ci && npm run build && npm run lint` in `web/` against the PR before merging any of them, or add a web job to CI.
+
 ### Exact next step
-Ask the user what to do with the 10 Dependabot PRs and PR #14 (review, ignore majors, or close). Then walk the user through the GitHub settings checklist in `docs/OPEN_SOURCE_LAUNCH.md`. Note: the push went straight to `main` with no branch protection and no PR review of this change.
+Ask the user about branch protection on `main`, the remaining Dependabot PRs (#19, #23, #33, #34, #35), and PR #14. Consider adding a `web/` build job to CI so npm updates are actually verified. Then the Scorecard and Best Practices badges, the niche comparison, and the launch itself (see `docs/OPEN_SOURCE_LAUNCH.md`).
 
 ---
 
@@ -253,8 +260,9 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 > Compose quick start and the Postgres Testcontainers test have never been executed; rate limiting keys on
 > `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket (documented, not fixed).
 >
-> **What to do next:** (1) CI, CodeQL, and Scorecard already passed on `main` (`96c07d7`). Ask the user how to
-> handle the 10 Dependabot PRs (#16–#25; several are risky major bumps) and the unexplained open PR #14
-> (scoped API keys). The DCO check is still untested on a real contributor PR. (2) Walk the user through the GitHub
+> **What to do next:** GitHub settings, labels, and starter issues #26–#32 are already done, and CI, CodeQL,
+> and Scorecard are green on `main`. (1) Ask the user about branch protection on `main`, the remaining
+> Dependabot PRs (#19, #23, #33, #34, #35; npm ones are NOT verified by CI), and the unexplained open PR #14
+> (scoped API keys). The DCO check is still untested on a real contributor PR. (2) Finish the rest of the GitHub
 > checklist in `docs/OPEN_SOURCE_LAUNCH.md` (private vulnerability reporting and Discussions first), then
 > help create the starter issues. Use `git commit -s` for all future commits. Run `/handoff` before stopping.
