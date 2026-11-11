@@ -172,7 +172,7 @@ mvn -Pintegration-test verify         # also runs the Postgres Testcontainers te
 | `RefreshTokenOptimisticLockTest` | Repository | 2 |
 | `PostgresFlywayIntegrationTest` | Testcontainers, Docker-gated, excluded from `mvn test` | 3 |
 
-The web portal has no automated test suite yet.
+The web portal has no automated test suite yet; CI does lint and build it (`Web Build` job).
 
 ## Security notes
 

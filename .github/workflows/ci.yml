@@ -38,3 +38,37 @@ jobs:
           name: jacoco-coverage-report
           path: target/site/jacoco/
           retention-days: 30
+
+  web-build:
+    runs-on: ubuntu-latest
+    name: Web Build
+
+    defaults:
+      run:
+        working-directory: web
+
+    # The build imports modules that require these to be set. Placeholder values only;
+    # nothing here is used at runtime or is a real secret.
+    env:
+      SESSION_SECRET: ci-build-only-placeholder-0123456789abcdef
+      AUTH_API_URL: http://localhost:8080
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
