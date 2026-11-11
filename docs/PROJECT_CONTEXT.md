@@ -2,7 +2,7 @@
 
 ## Overview
 
-`auth-service-java` is a stateless authentication REST API built with Spring Boot 3.2 / Java 17. It handles email/password registration and login, issues HS256 JWTs, and enforces token-based access on all non-auth routes. It is **Phase 1** of a longer roadmap toward an **Agent-Native Authentication Platform** — a backend designed to serve both human clients and AI agents.
+`auth-service-java` is a stateless authentication REST API built with Spring Boot 3.5 / Java 17. It handles email/password registration and login, issues HS256 JWTs, and enforces token-based access on all non-auth routes. It is **Phase 1** of a longer roadmap toward an **Agent-Native Authentication Platform** — a backend designed to serve both human clients and AI agents.
 
 ## Long-Term Vision
 
@@ -18,7 +18,7 @@ Turn this service into a production-grade, agent-aware authentication platform:
 | Layer | Technology |
 |-------|-----------|
 | Language | Java 17 |
-| Framework | Spring Boot 3.2 (Spring MVC, Spring Security 6, Spring Data JPA) |
+| Framework | Spring Boot 3.5 (Spring MVC, Spring Security 6.5, Spring Data JPA) |
 | JWT library | JJWT 0.12.x (HS256) |
 | Database | H2 in-memory (Phase 1 only) |
 | Build | Maven (spring-boot-maven-plugin) |

@@ -66,7 +66,7 @@ This document formalizes the technical requirements that satisfy the Product Req
 
 | Component | Technology | Requirement |
 |-----------|-----------|------------|
-| Framework | Spring Boot 3.2+ | JDK 17+, embedded Tomcat |
+| Framework | Spring Boot 3.5 | JDK 17+, embedded Tomcat |
 | Language | Java 17 | LTS release, strong types |
 | Persistence | Spring Data JPA | ORM, database-agnostic |
 | Authentication | Spring Security + JJWT | HS256 tokens, filter-based |

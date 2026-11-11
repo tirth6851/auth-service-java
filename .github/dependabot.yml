@@ -2,7 +2,7 @@ version: 2
 
 # Monthly, grouped updates keep this manageable for a solo maintainer.
 # Security updates are separate and still arrive immediately.
-# Major-version bumps are ignored (Java 17 target, Spring Boot 3.2 line, base images); do them by hand
+# Major-version bumps are ignored (Java 17 target, Spring Boot 3.5 line, base images); do them by hand
 # when planned. GitHub Actions majors are still proposed, since CI exercises them.
 updates:
   - package-ecosystem: maven

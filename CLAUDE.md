@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Auth Platform** — stateless JWT authentication (Spring Boot 3.2, Java 17, Phase 1 complete).
+**Auth Platform** — stateless JWT authentication (Spring Boot 3.5, Java 17, Phase 1 complete).
 
 ## MANDATORY: Read in this order BEFORE any code changes
 

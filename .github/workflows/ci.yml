@@ -39,6 +39,26 @@ jobs:
           path: target/site/jacoco/
           retention-days: 30
 
+  # Runs the Docker-gated Testcontainers tests (real PostgreSQL 16, Flyway migrations, ddl-auto=validate).
+  # The default job runs on H2 with Flyway off, so only this job can catch Flyway/Hibernate/Postgres breakage.
+  postgres-integration:
+    runs-on: ubuntu-latest
+    name: Postgres Integration
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Postgres integration tests
+        run: mvn -B -Pintegration-test verify
+
   web-build:
     runs-on: ubuntu-latest
     name: Web Build
