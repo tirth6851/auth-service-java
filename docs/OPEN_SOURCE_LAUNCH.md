@@ -54,7 +54,7 @@ Do these in order. Items 1 to 3 come first because the new files link to the pag
    Suggested topics, 20 max, lowercase with hyphens: `java`, `spring-boot`, `spring-security`, `jwt`,
    `authentication`, `auth-service`, `refresh-token`, `rate-limiting`, `bucket4j`, `postgresql`, `flyway`,
    `docker`, `nextjs`, `self-hosted`, `openapi`.
-4. **Create labels** used by the docs: `good first issue`, `help wanted`, `testing`, `docs`,
+4. **Create labels** used by the docs: `good first issue`, `help wanted`, `testing`, `documentation`,
    `observability`, `enhancement`.
 5. **Turn on security features.** Dependabot alerts and security updates; secret scanning and push protection.
 6. **Do not enable CodeQL "default setup".** `codeql.yml` already provides it, and running both makes the
@@ -109,7 +109,7 @@ a BCrypt hash (`$2a$`/`$2b$` prefix) that does not contain the plaintext, and th
 **Done when:** pool size, connection timeout, and max lifetime are set via documented properties with sane
 defaults, and the new settings appear in the configuration docs.
 
-### 3. Add a Bruno (or Postman) collection for the API: `good first issue`, `docs`
+### 3. Add a Bruno (or Postman) collection for the API: `good first issue`, `documentation`
 
 **Where:** a new `docs/api-collection/` folder.
 **Done when:** the collection covers signup, login, refresh, logout, and `/auth/me`; a test script saves the
@@ -122,13 +122,13 @@ access and refresh tokens to variables; and the README links to it.
 in `web/lib/`, and CI runs it. Scope the first PR to the setup plus a handful of tests; end-to-end tests can
 follow separately.
 
-### 5. Fix the stale `SecurityContext` principal decision: `good first issue`, `docs`
+### 5. Fix the stale `SecurityContext` principal decision: `good first issue`, `documentation`
 
 **Where:** `docs/PROJECT_DECISIONS.md` (D-009) and anywhere else that still says the principal is the email.
 **Done when:** the docs describe the `AuthenticatedUser` principal and link to the relevant ADR or code. A
 short superseding note is fine; do not delete history.
 
-### 6. Verify the Docker Compose quick start on your OS: `good first issue`, `docs`
+### 6. Verify the Docker Compose quick start on your OS: `good first issue`, `documentation`
 
 **Why:** the README documents `cp .env.example .env && docker compose up --build`. It has not been confirmed
 on every platform.

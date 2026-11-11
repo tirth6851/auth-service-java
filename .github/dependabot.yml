@@ -2,6 +2,8 @@ version: 2
 
 # Monthly, grouped updates keep this manageable for a solo maintainer.
 # Security updates are separate and still arrive immediately.
+# Major-version bumps are ignored (Java 17 target, Spring Boot 3.2 line, base images); do them by hand
+# when planned. GitHub Actions majors are still proposed, since CI exercises them.
 updates:
   - package-ecosystem: maven
     directory: /
@@ -13,6 +15,9 @@ updates:
     groups:
       maven-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /web
@@ -24,6 +29,9 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -42,6 +50,9 @@ updates:
       interval: monthly
     commit-message:
       prefix: deps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker-compose
     directory: /
@@ -49,3 +60,6 @@ updates:
       interval: monthly
     commit-message:
       prefix: deps
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
