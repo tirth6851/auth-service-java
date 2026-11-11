@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -20,20 +20,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <testcontainers.version>1.19.7</testcontainers.version>
     </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.testcontainers</groupId>
-                <artifactId>testcontainers-bom</artifactId>
-                <version>${testcontainers.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -73,6 +60,12 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
+        <!-- Flyway 10+ ships PostgreSQL support as a separate module; without it, migrations fail at
+             startup on PostgreSQL ("Unsupported Database"). H2 tests run with Flyway off and cannot catch this. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
 
         <!-- Bucket4j - in-process token-bucket rate limiting -->
         <dependency>
@@ -85,25 +78,25 @@
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
-            <version>0.12.5</version>
+            <version>0.13.0</version>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
-            <version>0.12.5</version>
+            <version>0.13.0</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.5</version>
+            <version>0.13.0</version>
             <scope>runtime</scope>
         </dependency>
 
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.5.0</version>
+            <version>2.10.0</version>
         </dependency>
 
         <dependency>
@@ -117,7 +110,8 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Testcontainers - Postgres, for real-Postgres/Flyway integration tests (see docs/TEST_STRATEGY.md) -->
+        <!-- Testcontainers - Postgres, for real-Postgres/Flyway integration tests (see docs/TEST_STRATEGY.md).
+             Version is managed by the Spring Boot BOM; do not pin it here. -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>

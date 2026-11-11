@@ -17,7 +17,7 @@ the repo, and several of its claims are flagged unverified below.
 
 Current one-line pitch (in the README):
 
-> A small, readable, self-hostable authentication service built with Spring Boot 3.2 and Java 17: email
+> A small, readable, self-hostable authentication service built with Spring Boot 3.5 and Java 17: email
 > and password signup and login, short-lived JWT access tokens, rotating refresh tokens with reuse
 > detection, and per-IP rate limiting, with an optional Next.js web portal.
 

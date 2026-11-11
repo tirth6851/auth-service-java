@@ -106,7 +106,7 @@ export JWT_SECRET="demo-secret-minimum-32-characters-long-12345"
 
 ### Stack
 - **Language**: Java 17
-- **Framework**: Spring Boot 3.2
+- **Framework**: Spring Boot 3.5
 - **Auth**: Spring Security + JJWT
 - **Database**: H2 in-memory (dev), PostgreSQL (planned for prod)
 - **Build**: Maven 3.6+

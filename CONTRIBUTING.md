@@ -1,7 +1,7 @@
 # Contributing to auth-service-java
 
 Thank you for your interest in contributing. This is a small, self-hostable authentication service
-(Spring Boot 3.2, Java 17) with a Next.js web portal. Contributions of every size are welcome, including
+(Spring Boot 3.5, Java 17) with a Next.js web portal. Contributions of every size are welcome, including
 typo fixes and doc improvements.
 
 ---

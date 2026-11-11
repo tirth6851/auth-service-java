@@ -2,6 +2,7 @@ package com.authplatform.integration;
 
 import com.authplatform.dto.AuthResponse;
 import com.authplatform.dto.LoginRequest;
+import com.authplatform.dto.RefreshRequest;
 import com.authplatform.dto.SignupRequest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -11,6 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -142,5 +146,63 @@ class PostgresFlywayIntegrationTest {
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(loginResponse.getBody()).isNotNull();
         assertThat(loginResponse.getBody().getToken()).isNotBlank();
+    }
+
+    /**
+     * Exercises the paths that depend on real Postgres behaviour and that the H2 suite cannot prove:
+     * the {@code @Version} column on refresh_tokens (V3), timestamptz round-trips, and the bulk
+     * {@code UPDATE ... WHERE revoked_at IS NULL} used by reuse detection.
+     */
+    @Test
+    void refreshRotationAndReuseDetection_againstRealPostgres_works() throws Exception {
+        SignupRequest signupRequest = new SignupRequest();
+        signupRequest.setEmail("pg-refresh-test@example.com");
+        signupRequest.setPassword("Str0ngPass!23");
+        AuthResponse signedUp = restTemplate.postForEntity(
+                "http://localhost:" + port + "/auth/signup", signupRequest, AuthResponse.class).getBody();
+        assertThat(signedUp).isNotNull();
+        String firstRefresh = signedUp.getRefreshToken();
+        assertThat(firstRefresh).isNotBlank();
+
+        // Rotation: a valid refresh token yields a new, different pair.
+        ResponseEntity<AuthResponse> rotated = restTemplate.postForEntity(
+                "http://localhost:" + port + "/auth/refresh", refreshRequest(firstRefresh), AuthResponse.class);
+        assertThat(rotated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rotated.getBody()).isNotNull();
+        String secondRefresh = rotated.getBody().getRefreshToken();
+        assertThat(secondRefresh).isNotBlank().isNotEqualTo(firstRefresh);
+
+        // The rotated access token authenticates against a protected endpoint.
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(rotated.getBody().getToken());
+        ResponseEntity<String> me = restTemplate.exchange(
+                "http://localhost:" + port + "/auth/me", HttpMethod.GET, new HttpEntity<>(headers), String.class);
+        assertThat(me.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(me.getBody()).contains("pg-refresh-test@example.com");
+
+        // Reuse detection: replaying the already-rotated token is rejected...
+        ResponseEntity<String> replay = restTemplate.postForEntity(
+                "http://localhost:" + port + "/auth/refresh", refreshRequest(firstRefresh), String.class);
+        assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        // ...and revokes the user's remaining active token too, so the newest one no longer works.
+        ResponseEntity<String> afterReuse = restTemplate.postForEntity(
+                "http://localhost:" + port + "/auth/refresh", refreshRequest(secondRefresh), String.class);
+        assertThat(afterReuse.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery(
+                     "SELECT count(*) FROM refresh_tokens rt JOIN users u ON u.id = rt.user_id "
+                             + "WHERE u.email = 'pg-refresh-test@example.com' AND rt.revoked_at IS NULL")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getLong(1)).as("active refresh tokens left after reuse detection").isZero();
+        }
+    }
+
+    private static HttpEntity<RefreshRequest> refreshRequest(String refreshToken) {
+        RefreshRequest request = new RefreshRequest();
+        request.setRefreshToken(refreshToken);
+        return new HttpEntity<>(request);
     }
 }

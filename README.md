@@ -2,10 +2,10 @@
 
 [![CI](https://github.com/tirth6851/auth-service-java/actions/workflows/ci.yml/badge.svg)](https://github.com/tirth6851/auth-service-java/actions/workflows/ci.yml)
 ![Java 17](https://img.shields.io/badge/Java-17-blue?logo=openjdk)
-![Spring Boot 3.2.5](https://img.shields.io/badge/Spring%20Boot-3.2.5-brightgreen?logo=springboot)
+![Spring Boot 3.5.16](https://img.shields.io/badge/Spring%20Boot-3.5.16-brightgreen?logo=springboot)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-A small, readable, self-hostable authentication service built with Spring Boot 3.2 and Java 17:
+A small, readable, self-hostable authentication service built with Spring Boot 3.5 and Java 17:
 email and password signup and login, short-lived JWT access tokens, rotating refresh tokens with reuse
 detection, and per-IP rate limiting. It ships with an optional Next.js web portal in [`web/`](web/).
 
