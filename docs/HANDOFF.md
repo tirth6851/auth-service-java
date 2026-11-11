@@ -1,9 +1,9 @@
 # Session Handoff
 
-**Last updated**: 2026-11-10 (Open-source launch prep — repo files, GitHub settings, and starter issues done; pushed directly to `main` at the user's request, no PR)
-**Branch**: work was done on `claude/open-source-readiness` (cut from `origin/main` `07d288f`, the PR #15 merge) and fast-forward pushed to `origin/main`. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it** (deliberately left out of the push even though the user said "push all").
-**Tests**: **72 backend tests passing (0 failures)**, re-run this session via IntelliJ Maven + JBR 21 (`mvn -B test`). The 3 Docker-gated Postgres tests are excluded and have still never run anywhere. No application code changed this session. Frontend: still no automated suite.
-**Current goal**: turn the project into a healthy open-source project, following `docs/OPEN_SOURCE_LAUNCH.md`. Repo files, GitHub settings, and starter issues are done; remaining work is branch protection, badges, deciding on Dependabot PRs and PR #14, the niche comparison, and the launch itself.
+**Last updated**: 2026-11-10 (Open-source launch prep done, then **Spring Boot 3.5.16 upgrade merged via PR #37**)
+**Branch**: `main` at `5b23bed` (PR #37 merge). Local `main` is synced; no other branches matter. `Java auth open source growth.md` is the user's private research note, **untracked on purpose — never stage it**.
+**Tests**: **72 backend tests pass on Boot 3.5.16** (`mvn clean test`, IntelliJ Maven + JBR 21), and the **3 Docker-gated Postgres tests now run in CI on every PR** (`Postgres Integration` job, a required check); they passed against real PostgreSQL 16 with Flyway 11.7.2 and `ddl-auto=validate` for the first time ever. Frontend: still no automated test suite (CI lint + builds it).
+**Current goal**: turn the project into a healthy open-source project (`docs/OPEN_SOURCE_LAUNCH.md`). Repo files, GitHub settings, branch protection, starter issues, CI, and the Spring Boot upgrade are done. Remaining: the other Dependabot PRs, PR #14, badges, the niche comparison, and the launch itself.
 
 ---
 
@@ -53,8 +53,16 @@ Resumed from the 2026-07-25 handoff. **Drift found:** the handoff's next step ("
 - **Branch protection applied to `main`:** PR required (0 approvals), required checks `Build and Test`, `Web Build`, `Analyze (java-kotlin)`, `Analyze (javascript-typescript)`, `Signed-off-by check`; no force pushes or deletions; `enforce_admins=false`, so the owner can still push directly (this handoff's own push tested that).
 - **Dependabot PRs deliberately NOT merged**, per `MISSION_CONTROL.md` (dependency updates are "discuss before code"): #35 is **Spring Boot 3.2.5→3.5.16, JJWT 0.12.5→0.13.0, springdoc 2.5→2.10** (backend tests pass, but it is a security-sensitive upgrade that deserves a deliberate, reviewed change; 3.2 is out of support, so it is worth doing); #23 (13 npm minor/patch bumps, lint and build pass, no runtime tests); #33/#34 (lockfile-only transitive patches for `systeminformation` and `undici`; stale, will conflict after #23); #19 (GitHub Actions majors checkout v7 / setup-java v6 / upload-artifact v7; stale, Dependabot will recreate).
 
+### Third follow-up: Spring Boot upgrade (user said "do the spring boot upgrade") — merged as PR #37, `5b23bed`
+- **Versions:** Boot 3.2.5 → **3.5.16**, JJWT 0.12.5 → **0.13.0**, springdoc 2.5.0 → **2.10.0**, Flyway 9.22.3 → **11.7.2**, Spring Security 6.2.4 → 6.5.11, Hibernate 6.4.4 → 6.6.53, H2 2.2 → 2.3. Testcontainers now Boot-managed 1.21.4 (the pinned 1.19.7 and its BOM import were removed; **2.0 deliberately not taken**, it renames artifacts). Java stays 17. Decision record: **D-012**. Supersedes Dependabot #35 (closed with an explanation).
+- **The silent-break risk that was found and fixed:** Flyway 10+ ships PostgreSQL support in a separate module. Added `flyway-database-postgresql`; without it `prod` migrations fail at startup, and the H2 suite (Flyway off) cannot see it.
+- **Verification:** `mvn clean test` 72/72 with `spring-boot-properties-migrator` temporarily enabled (no renamed properties; removed before commit); `dependency:tree` confirmed resolved versions; the packaged jar was run in the `dev` profile and the full API flow checked by hand (signup, `/auth/me`, missing and tampered token, duplicate signup, wrong password, refresh rotation, reuse detection and family revocation, logout, validation, Swagger UI, 404 vs 401); CI log confirmed Flyway migrated V1–V3 on Postgres 16 and 3/3 integration tests passed.
+- **New/changed tests and CI:** `PostgresFlywayIntegrationTest` gained a refresh-rotation and reuse-detection test (it exercises the `@Version` column, timestamptz, and the bulk revoke query on real Postgres). New CI job `Postgres Integration` (`mvn -B -Pintegration-test verify`), added to the required checks after its first green run. The **DCO check passed on a real PR for the first time**.
+- **Known leftovers (not caused by the upgrade):** `Bandwidth.classic` / `Refill` in `RateLimitInterceptor` are deprecated in Bucket4j 8.10; the Dockerfile's `maven:3.8-openjdk-17` build image was never exercised on 3.5 (unchanged); the README's "3 Postgres tests" is now accurate (it was 2 before; `@Testcontainers` had inflated an earlier grep).
+- Repo description updated to say Spring Boot 3.5; version references updated in README, CONTRIBUTING, CLAUDE.md, CLAUDE_SESSION_START.md, TRD, PROJECT_CONTEXT, dependabot comment, launch doc. `docs/spec.md` is the original Phase 1 spec and was intentionally left as history.
+
 ### Exact next step
-Ask the user to decide on the Dependabot PRs: the Spring Boot / JJWT upgrade (#35) is the most important, and should be done on purpose with a security review. Then PR #14, the Scorecard and Best Practices badges, the niche comparison, and the launch itself (see `docs/OPEN_SOURCE_LAUNCH.md`).
+Ask the user to decide on the remaining open Dependabot PRs (#19 stale Actions majors, #23 npm minor/patch, #33/#34 stale lockfile patches), and about PR #14. Dependabot will now re-propose the other Maven updates (for example Bucket4j) against the new baseline. Then the Scorecard and Best Practices badges, the niche comparison, and the launch itself (`docs/OPEN_SOURCE_LAUNCH.md`).
 
 ---
 
@@ -238,37 +246,36 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 
 ## 🔖 New Session Prompt (ready to paste)
 
-> Continue the Java Auth Service project, open-source launch prep. The work is on `main` (pushed directly
-> from `claude/open-source-readiness`, which was cut from `07d288f`). PR #15 is already merged, so do NOT
-> open a PR for `claude/auth-portal-m1`.
-> This is the authoritative starting state; do not re-derive it.
+> Continue the Java Auth Service project (open-source launch). Work from `main` (`5b23bed` or later); there
+> is no long-lived feature branch. This is the authoritative starting state; do not re-derive it.
 >
-> **Read first, in order:** `CLAUDE.md`, this `docs/HANDOFF.md`'s top section ("2026-11-10 — open-source
-> launch prep"; everything below it is historical), `docs/OPEN_SOURCE_LAUNCH.md`, and `docs/PROJECT_DECISIONS.md`
-> D-011.
+> **Read first, in order:** `CLAUDE.md`, this `docs/HANDOFF.md`'s top section (everything below the
+> "Third follow-up" section's "Exact next step" is history), `docs/OPEN_SOURCE_LAUNCH.md`, and
+> `docs/PROJECT_DECISIONS.md` D-011 (open-source terms) and D-012 (Spring Boot upgrade).
 >
-> **State:** Repo-file work is done and **committed on `main`**: `SECURITY.md`, rewritten `CONTRIBUTING.md` and
-> `README.md`, Dependabot, CodeQL, Scorecard and DCO workflows, `ci.yml` hardening, PR/issue template
-> changes, `docs/OPEN_SOURCE_LAUNCH.md`, plus D-011 and backlog/progress updates. 72 backend tests pass
-> (`mvn -B test`, IntelliJ JBR 21 + bundled Maven, NOT system JDK 24). No application code changed.
-> Decisions made with the user: self-hostable service positioning, MIT + DCO, 3-business-day response
-> target, repo files only (no GitHub settings changed, nothing posted or pushed).
+> **State (done, do NOT redo):** Backend is on **Spring Boot 3.5.16 / Java 17**, JJWT 0.13.0, springdoc
+> 2.10.0, Flyway 11.7.2 (+ `flyway-database-postgresql`), Testcontainers 1.21.4 (Boot-managed). 72 backend
+> tests pass (`mvn clean test`; use IntelliJ's JBR 21 + bundled Maven, NOT system JDK 24), and 3 Postgres
+> Testcontainers tests pass in CI. Open-source repo files, `SECURITY.md`, DCO, Dependabot (major bumps
+> ignored), CodeQL, Scorecard, GitHub settings, labels, starter issues #26-#32, and branch protection on
+> `main` are all done. CI jobs (all required checks): `Build and Test`, `Postgres Integration`, `Web Build`,
+> both CodeQL `Analyze` jobs, `Signed-off-by check`. Branch protection has `enforce_admins=false`, so the
+> owner can still push directly; prefer PRs for code changes. Use `git commit -s` on every commit.
 >
 > **Do NOT:** stage or move `Java auth open source growth.md` (the user's private research, untracked on
-> purpose); remove the internal-looking files without asking; make comparative or niche claims about other
-> auth projects (the overlap check is not done); invent password reset, email verification, RBAC, sessions
-> API, audit logging, or token revocation; push, open PRs, change GitHub settings, or post anywhere without
-> explicit confirmation.
+> purpose); remove internal-looking files (`docs/AGENT_REWARDS.md`, `DOCUMENTATION_COMPLETE.md`,
+> `CLAUDE*.md`) without asking; make comparative or niche claims about other auth projects (the overlap check
+> is not done); invent password reset, email verification, RBAC, sessions API, audit logging, or token
+> revocation; merge dependency PRs without discussion (`MISSION_CONTROL.md`); touch PR #14 (scoped API keys,
+> unexplained) without asking.
 >
-> **Caveats to keep in mind:** the four new workflows have never run (verify after push); the Docker
-> Compose quick start and the Postgres Testcontainers test have never been executed; rate limiting keys on
-> `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket (documented, not fixed).
+> **Known caveats:** rate limiting keys on `getRemoteAddr()`, so behind a reverse proxy all clients share one
+> bucket (documented; starter issue #32 needs an ADR); `Bandwidth.classic`/`Refill` are deprecated in Bucket4j
+> 8.10; the Docker Compose quick start and the Dockerfile build image were never exercised on Boot 3.5; the
+> web portal has no runtime tests (CI only lints and builds it); the Render services were never provisioned.
 >
-> **What to do next:** GitHub settings, labels, starter issues #26–#32, branch protection on `main`, and a
-> CI `Web Build` job are all done; CI, CodeQL, and Scorecard are green on `main`. (1) Ask the user to decide on
-> the open Dependabot PRs, deliberately NOT merged: #35 is a Spring Boot 3.2.5→3.5.16 + JJWT 0.12.5→0.13.0
-> upgrade that needs a reviewed, security-conscious change; #23 (npm minor/patch), #33/#34 (stale lockfile
-> patches), #19 (stale Actions majors). Also ask about the unexplained open PR #14 (scoped API keys). The DCO
-> check is still untested on a real contributor PR. (2) Remaining launch work: Scorecard and Best Practices
-> badges, the niche comparison, then the launch posts (`docs/OPEN_SOURCE_LAUNCH.md`). Use `git commit -s` for
-> all future commits. Run `/handoff` before stopping.
+> **What to do next:** (1) Ask the user about the remaining open Dependabot PRs: #19 (stale GitHub Actions
+> majors), #23 (13 npm minor/patch bumps), #33/#34 (stale lockfile patches), and PR #14. Dependabot will
+> re-propose other Maven updates (for example Bucket4j) against the new baseline. (2) Remaining launch work:
+> Scorecard and Best Practices badges, the niche comparison, then the launch posts. Run `/handoff` before
+> stopping.

@@ -127,24 +127,31 @@ See "Latest Metrics" below for current test count. `main` branch is green.
 - Renumbered `docs/ADR/005-rate-limiting-strategy.md` → `007-rate-limiting-strategy.md`
 - Closed stale PR #5 (401 fix already merged via PR #6)
 
-### Milestone 15 — Open-source launch prep, repo files (2026-11-10)
-**Branch**: `claude/open-source-readiness` (from `origin/main` after PR #15)
+### Milestone 15 — Open-source launch prep (2026-11-10)
+**Branches**: `claude/open-source-readiness` (pushed to `main`), later PR #37
 - Positioning, license, and contribution terms decided (D-011): self-hostable service, MIT + DCO, 3-business-day response target
 - Added `SECURITY.md`; rewrote `CONTRIBUTING.md` and `README.md` against the current code (README previously claimed 37 tests and stale endpoint shapes)
-- Added Dependabot (monthly, grouped), CodeQL (Java + JS/TS), OpenSSF Scorecard, and DCO check workflows; `ci.yml` now has read-only token permissions and SHA-pinned actions
-- Added `docs/OPEN_SOURCE_LAUNCH.md` (settings checklist, 7 starter-issue drafts, launch gates)
-- No application code changed; no GitHub settings changed; nothing pushed
+- Added Dependabot (monthly, grouped, major bumps ignored), CodeQL (Java + JS/TS), OpenSSF Scorecard, and DCO check workflows; `ci.yml` has read-only token permissions and SHA-pinned actions
+- Added a `Web Build` CI job; it exposed and fixed an out-of-sync `web/package-lock.json` (npm 11 vs npm 10)
+- GitHub settings applied: description, topics, Discussions, private vulnerability reporting, secret scanning, branch protection on `main`; starter issues #26–#32
+- Added `docs/OPEN_SOURCE_LAUNCH.md` (settings checklist, starter-issue drafts, launch gates)
 - Found and documented a limitation: rate limiting keys on `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket
+
+### Milestone 16 — Spring Boot 3.5 upgrade (2026-11-10, PR #37, `5b23bed`)
+- Spring Boot 3.2.5 → 3.5.16, JJWT 0.12.5 → 0.13.0, springdoc 2.5.0 → 2.10.0, Flyway 9.22.3 → 11.7.2 (added `flyway-database-postgresql`), Testcontainers Boot-managed 1.21.4 (see D-012)
+- New CI job `Postgres Integration` runs the Docker-gated tests; `PostgresFlywayIntegrationTest` extended to cover refresh rotation and reuse detection (3 tests now). They ran against real PostgreSQL 16 for the first time and passed
+- Verified with `mvn clean test` (72/72), `spring-boot-properties-migrator` (no renamed properties), and a manual end-to-end run of the packaged app
+- Supersedes Dependabot #35
 
 ## Latest Metrics (2026-11-10)
 
 | Metric | Value |
 |--------|-------|
-| Test count | 72 (0 failures) — `mvn -B test` re-run on 2026-11-10 with IntelliJ JBR 21 (3 Docker-gated Postgres tests excluded; not yet executed anywhere) |
-| Build status | `mvn test` — BUILD SUCCESS |
-| Branch | `claude/open-source-readiness` (docs/config only), branched from `origin/main` at `07d288f` |
-| Open PRs | 0. PR #15 (`claude/auth-portal-m1`) merged into `main`; the open-source prep branch is not yet pushed or PR'd |
-| Phase | 3 — Open-source launch prep in progress; repo files done, GitHub settings and workflow verification pending (see `docs/OPEN_SOURCE_LAUNCH.md`) |
+| Test count | 72 default (H2) + 3 Postgres Testcontainers = 75, 0 failures. Default suite re-run locally on Boot 3.5.16; the 3 Postgres tests run in CI (`Postgres Integration`) |
+| Build status | CI green on `main` (`5b23bed`): Build and Test, Postgres Integration, Web Build, CodeQL, Scorecard |
+| Branch | `main` at `5b23bed` |
+| Open PRs | #14 (scoped API keys, unexplained), #19, #23, #33, #34 (Dependabot, not merged) |
+| Phase | 3 — Open-source launch prep: repo files, settings, protection, starter issues, and Boot 3.5 upgrade done; badges, niche comparison, and launch posts remain (see `docs/OPEN_SOURCE_LAUNCH.md`) |
 
 <!-- Prior metrics (2026-07-25): test count 72 on claude/auth-portal-m1; 2026-06-30: 68 -->
 
