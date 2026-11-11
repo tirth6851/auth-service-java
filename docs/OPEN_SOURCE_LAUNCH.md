@@ -46,13 +46,18 @@ None of the new workflows has run yet. Check the first runs after you push (see 
 
 Do these in order. Items 1 to 3 come first because the new files link to the pages they enable.
 
-**Status (2026-11-10):** items 1–7, 9, and 11 are **done** (applied with `gh`, then verified): private
+**Status (2026-11-10):** items 1–9 and 11 are **done** (applied with `gh`, then verified): private
 vulnerability reporting, Discussions, description and 15 topics, labels, Dependabot alerts and security
 updates, secret scanning with push protection, read-only workflow permissions, first workflow runs (CI,
-CodeQL, Scorecard green on `main`), and starter issues #26–#32. Still **open**: item 8 (branch protection,
-deliberately not applied because it changes how you can push to `main`), item 10 (Scorecard badge and Best
-Practices badge), and pinning a "Start here" discussion (item 2). The DCO check has not run on a real
-contributor PR yet.
+CodeQL, Scorecard green on `main`), starter issues #26–#32, and branch protection on `main` (PR required with
+0 approvals, required checks `Build and Test`, `Web Build`, both `Analyze` jobs, and `Signed-off-by check`,
+no force pushes or deletions; **admins can still push directly**, so tighten `enforce_admins` later if you
+want it strict). Still **open**: item 10 (Scorecard badge and Best Practices badge) and pinning a "Start
+here" discussion (item 2). The DCO check has not run on a real contributor PR yet.
+
+CI also gained a `Web Build` job (Node 22: `npm ci`, lint, build) because the Maven-only job never verified
+the portal. Adding it exposed an out-of-sync `web/package-lock.json` (generated with npm 11, failed `npm ci`
+on npm 10); it was regenerated without changing any package version.
 
 1. **Enable private vulnerability reporting.** Settings → Code security → *Private vulnerability
    reporting*. `SECURITY.md` and `ISSUE_TEMPLATE/config.yml` link to it.
