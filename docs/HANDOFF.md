@@ -264,9 +264,11 @@ This session's job was reconciliation, not new features: merged PR #10 (refresh 
 > Compose quick start and the Postgres Testcontainers test have never been executed; rate limiting keys on
 > `getRemoteAddr()`, so behind a reverse proxy all clients share one bucket (documented, not fixed).
 >
-> **What to do next:** GitHub settings, labels, and starter issues #26–#32 are already done, and CI, CodeQL,
-> and Scorecard are green on `main`. (1) Ask the user about branch protection on `main`, the remaining
-> Dependabot PRs (#19, #23, #33, #34, #35; npm ones are NOT verified by CI), and the unexplained open PR #14
-> (scoped API keys). The DCO check is still untested on a real contributor PR. (2) Finish the rest of the GitHub
-> checklist in `docs/OPEN_SOURCE_LAUNCH.md` (private vulnerability reporting and Discussions first), then
-> help create the starter issues. Use `git commit -s` for all future commits. Run `/handoff` before stopping.
+> **What to do next:** GitHub settings, labels, starter issues #26–#32, branch protection on `main`, and a
+> CI `Web Build` job are all done; CI, CodeQL, and Scorecard are green on `main`. (1) Ask the user to decide on
+> the open Dependabot PRs, deliberately NOT merged: #35 is a Spring Boot 3.2.5→3.5.16 + JJWT 0.12.5→0.13.0
+> upgrade that needs a reviewed, security-conscious change; #23 (npm minor/patch), #33/#34 (stale lockfile
+> patches), #19 (stale Actions majors). Also ask about the unexplained open PR #14 (scoped API keys). The DCO
+> check is still untested on a real contributor PR. (2) Remaining launch work: Scorecard and Best Practices
+> badges, the niche comparison, then the launch posts (`docs/OPEN_SOURCE_LAUNCH.md`). Use `git commit -s` for
+> all future commits. Run `/handoff` before stopping.
