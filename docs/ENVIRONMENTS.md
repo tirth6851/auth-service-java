@@ -155,6 +155,22 @@ java -jar auth-platform-0.0.1-SNAPSHOT.jar \
   --app.jwt.secret=$APP_JWT_SECRET
 ```
 
+### Production HikariCP Connection Pool
+
+The `prod` profile uses a conservative database connection pool. These three settings
+are configurable through environment variables; the defaults apply when an override
+is not supplied.
+
+| Property | Environment variable | Default | Purpose |
+|----------|----------------------|---------|---------|
+| `spring.datasource.hikari.maximum-pool-size` | `HIKARI_MAX_POOL_SIZE` | `5` | Maximum connections per application instance |
+| `spring.datasource.hikari.connection-timeout` | `HIKARI_CONNECTION_TIMEOUT_MS` | `20000` ms (20 s) | Maximum wait to acquire a connection |
+| `spring.datasource.hikari.max-lifetime` | `HIKARI_MAX_LIFETIME_MS` | `1500000` ms (25 min) | Maximum lifetime of a pooled connection |
+
+Tune the pool size based on query load, PostgreSQL's connection budget, and the number
+of application instances. Set max lifetime below database or proxy connection limits.
+These overrides only apply when the `prod` profile is active.
+
 **Assumptions:**
 - Reverse proxy (nginx) enforces HTTPS and handles SSL/TLS termination
 - Secrets managed by HashiCorp Vault, AWS Secrets Manager, or equivalent

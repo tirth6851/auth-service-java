@@ -117,6 +117,9 @@ Secrets and environment-specific values come from environment variables. Default
 | `JWT_SECRET` | **required** | HS256 signing secret, minimum 32 characters. The app fails fast at startup without it. Generate with `openssl rand -base64 48`. |
 | `SPRING_PROFILES_ACTIVE` | none | `dev` enables the H2 console; `prod` uses PostgreSQL and Flyway. |
 | `POSTGRES_JDBC_URL`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | none | Required in the `prod` profile. |
+| `HIKARI_MAX_POOL_SIZE` | `5` (`prod` only) | Maximum HikariCP connections per application instance. |
+| `HIKARI_CONNECTION_TIMEOUT_MS` | `20000` (`prod` only) | Maximum wait for a connection (milliseconds). |
+| `HIKARI_MAX_LIFETIME_MS` | `1500000` (`prod` only) | Maximum pooled connection lifetime (milliseconds). |
 | `app.jwt.expiration-ms` | `3600000` (1 h); `900000` (15 min) in `prod` | Access token lifetime. |
 | `app.refresh-token.ttl-ms` | `604800000` (7 days) | Refresh token lifetime. |
 | `app.cors.allowed-origins` | `http://localhost:3000,http://localhost:5173` | Comma-separated explicit origins. |
