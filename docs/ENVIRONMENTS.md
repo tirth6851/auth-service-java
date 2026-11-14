@@ -155,6 +155,13 @@ java -jar auth-platform-0.0.1-SNAPSHOT.jar \
   --app.jwt.secret=$APP_JWT_SECRET
 ```
 
+**Assumptions:**
+- Reverse proxy (nginx) enforces HTTPS and handles SSL/TLS termination
+- Secrets managed by HashiCorp Vault, AWS Secrets Manager, or equivalent
+- Persistent database: MySQL, PostgreSQL, or managed cloud service
+- No H2 in production (in-memory, resets on restart)
+- Horizontal scaling: stateless app, any instance can validate JWT
+
 ### Production HikariCP Connection Pool
 
 The `prod` profile uses a conservative database connection pool. These three settings
@@ -170,13 +177,6 @@ is not supplied.
 Tune the pool size based on query load, PostgreSQL's connection budget, and the number
 of application instances. Set max lifetime below database or proxy connection limits.
 These overrides only apply when the `prod` profile is active.
-
-**Assumptions:**
-- Reverse proxy (nginx) enforces HTTPS and handles SSL/TLS termination
-- Secrets managed by HashiCorp Vault, AWS Secrets Manager, or equivalent
-- Persistent database: MySQL, PostgreSQL, or managed cloud service
-- No H2 in production (in-memory, resets on restart)
-- Horizontal scaling: stateless app, any instance can validate JWT
 
 ---
 
